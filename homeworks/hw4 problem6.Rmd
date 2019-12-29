@@ -1,0 +1,181 @@
+---
+title: "Hw4 problem6"
+author: "Priscilla"
+date: "10/2/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+getwd()
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/hw")
+```
+
+## b.1 Noiseless Senario
+```{r}
+# train the data
+
+# noiseless senario
+m_const1=c()
+m_linear1=matrix(nrow=500,ncol=2)
+for (i in 1:500){
+  x_pts=runif(n=2,min=-1,max=1)
+  y_pts=x_pts^2
+  m_const1=c(m_const1,mean(y_pts))
+  m_linear1[i,1]=(y_pts[2]*x_pts[1]-y_pts[1]*x_pts[2])/(x_pts[1]-x_pts[2]) #intercept
+  m_linear1[i,2]=(y_pts[1]-y_pts[2])/(x_pts[1]-x_pts[2]) #slope
+}
+```
+
+```{r}
+# calculating overall test MSE
+MSE_const_test=c()
+MSE_linear_test=c()
+set.seed(12345)
+n_out <- 20000
+x_out <- runif(n_out, min = -1, max = 1)
+y_out <- x_out^2
+
+for (i in 1:500){
+  # simulated out-of-sample data points
+  b=m_linear1[i,1]
+  k=m_linear1[i,2]
+  
+  MSE_const_test=c(MSE_const_test,mean((m_const1[i]-y_out)^2))
+  MSE_linear_test=c(MSE_linear_test,mean((k*x_out+b-y_out)^2))
+}
+MSE_const_test=mean(MSE_const_test)
+MSE_linear_test=mean(MSE_linear_test)
+
+v=c(MSE_const_test,MSE_linear_test)
+names(v)=c("MSE_const_test","MSE_linear_test")
+v
+```
+
+## b.2 Noisy Senario
+```{r}
+# noisy senario
+m_const2=c()
+m_linear2=matrix(nrow=500,ncol=2)
+for (i in 1:500){
+  x_pts=runif(n=2,min=-1,max=1)
+  y_pts=x_pts^2+rnorm(n=2)/50
+  m_const2=c(m_const2,mean(y_pts))
+  m_linear2[i,1]=(y_pts[2]*x_pts[1]-y_pts[1]*x_pts[2])/(x_pts[1]-x_pts[2]) #intercept
+  m_linear2[i,2]=(y_pts[1]-y_pts[2])/(x_pts[1]-x_pts[2]) #slope
+}
+```
+
+```{r}
+# calculating overall test MSE
+MSE_const_test=c()
+MSE_linear_test=c()
+set.seed(12345)
+n_out <- 20000
+x_out <- runif(n_out, min = -1, max = 1)
+y_out <- x_out^2+rnorm(n=20000)/50
+
+for (i in 1:500){
+  # simulated out-of-sample data points
+  b=m_linear2[i,1]
+  k=m_linear2[i,2]
+  MSE_const_test=c(MSE_const_test,mean((m_const2[i]-y_out)^2))
+  MSE_linear_test=c(MSE_linear_test,mean((k*x_out+b-y_out)^2))
+}
+MSE_const_test=mean(MSE_const_test)
+MSE_linear_test=mean(MSE_linear_test)
+
+v2=c(MSE_const_test,MSE_linear_test)
+names(v2)=c("MSE_const_test","MSE_linear_test")
+v2
+```
+
+## c.1 Plotting (noiseless)
+
+d.Discription: we may see from the graph that the linear model suffers more variance.
+```{r}
+df_noiseless=data.frame(m_const1,m_linear1)
+
+x0 <- seq(-1, 1, by = 0.01) 
+y0 <- x0^2
+
+# plot for const hypothsis
+plot(x0, y0, type="p",cex=0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y") #plot this one first
+abline(h=m_const1,xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="grey80",xlab="x",ylab="y")
+abline(h=mean(m_const1),xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type="p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+```
+
+
+```{r}
+# plot for linear hypothsis
+plot(x0, y0, type = "p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+for (i in 1:500){
+  abline(a=m_linear1[i,1],b=m_linear1[i,2],
+         xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="grey80",xlab="x",ylab="y")
+}
+abline(mean(m_linear1[,1]),mean(m_linear1[,2]),
+       xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type = "p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+
+```
+
+## c.2 Plotting (noisy)
+
+d.Discription: In the noisy senario, the linear model suffers even more variance while 
+the constant model seems still stable.
+
+```{r}
+x0 <- seq(-1, 1, by = 0.01) 
+y0 <- x0^2+rnorm(n=201)/50
+
+# plot for const hypothsis
+plot(x0, y0, type="p",cex=0.5, col = "#608EDB", las = 1, 
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y") #plot this one first
+abline(h=m_const2,xlim = c(-1, 1), ylim = c(-0.25, 1.2),
+       col="grey80",xlab="x",ylab="y")
+abline(h=mean(m_const2),xlim = c(-1, 1), ylim = c(-0.25, 1.2),
+       col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type="p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+```
+
+
+```{r}
+# plot for linear hypothsis
+plot(x0, y0, type = "p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+for (i in 1:500){
+  abline(a=m_linear2[i,1],b=m_linear2[i,2],
+         xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="grey80",xlab="x",ylab="y")
+}
+abline(mean(m_linear2[,1]),mean(m_linear2[,2]),
+       xlim = c(-1, 1), ylim = c(-0.25, 1.2),col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type = "p", cex = 0.5, col = "#608EDB", las = 1,
+     xlim = c(-1, 1), ylim = c(-0.25, 1.2),xlab="x",ylab="y")
+
+```
+
+
+## d Report the results, and comment on what you obtained. Likewise, provide descriptions for each plot.
+
+By calculating the overall test MSE in both senarios, we can see that the MSE in the constant model doesn't change a lot.
+In the linear model, however, the MSE in the noiseless senario is about 0.5 while in the noisy senario is about 1.5.
+This indicates that the constant model (inflexible one) is less possible to overfit the model.
+
+Since in both senarios, the test MSE of constant model is smaller than the linear model, we may conclude that constant model
+is a more suitable model.
+
+(Discriptions are below each plot.)
+
+
+

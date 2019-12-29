@@ -1,0 +1,39 @@
+---
+title: "hw2 problem 6"
+author: "Priscilla"
+date: "9/20/2019"
+output: html_document
+---
+## Grab Data
+```{r}
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/hw")
+data=read.csv("Advertising.csv",row.names="X")
+temp=rep(1,nrow(data))
+X=cbind(temp,data[,1:3])
+y=data.matrix(data[4])
+Z=matrix(nrow=nrow(X),ncol=ncol(X))
+Z[,1]=1
+gamma=matrix(nrow=ncol(X)-1,ncol=ncol(X))
+Beta <- vector(length = ncol(data)-2)
+```
+
+## The loop
+```{r}
+for (p in 2:ncol(data)){
+  for (j in 2:p){
+    for (l in 1:(j-1)){
+      gamma[l,j]=t(Z[,l])%*%X[,j]/t(Z[,l])%*%Z[,l]
+    }
+    temp=rep(0,nrow(X))
+    for (k in 1:(j-1)){
+      temp=temp+gamma[k,j]*Z[,k]
+    }
+    Z[,j]=X[,j]-temp
+  }
+  Beta[p-1] = t(Z[,p]) %*% y / (t(Z[,p]) %*% Z[,p])
+}
+result=lm(sales~.,data=data)
+result$coefficients
+Beta
+```
+

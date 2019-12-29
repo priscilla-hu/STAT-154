@@ -1,0 +1,272 @@
+---
+title: "hw9"
+author: "Priscilla Hu"
+date: "11/10/2019"
+output: pdf_document
+---
+## 1) LDA
+
+```{r}
+# 1.1) Function lda_fit()
+library(ISLR)
+
+lda_fit<-function(X,y){
+  y_class=unique(y)
+  K=length(y_class)
+  p=ncol(X)
+  pi_hat=rep(0,K)
+  names(pi_hat)=y_class
+  mu_hat=matrix(0,nrow=K,ncol=p)
+  for (i in 1:K){
+    pi_hat[i]=sum(y==y_class[i])/(nrow(X))
+    mu_hat[i,]=apply(X[y==y_class[i],],2,mean)
+    X_centred=X[y==y_class[i],]-mu_hat[i,]
+  }
+  sigma_hat=(t(X_centred)%*%X_centred)/(nrow(X)-K)
+  return(list("pi_hat"=pi_hat,"mu_hat"=mu_hat,"sigma_hat"=sigma_hat))
+}
+```
+
+```{r}
+# 1.2) Function lda_predict()
+library(mvtnorm)
+lda_predict<-function(fit,newdata)
+{
+  y_class=names(fit$pi_hat)
+  K=length(y_class)
+  pi_hat=fit$pi_hat
+  
+  mu_hat=fit$mu_hat
+  sigma_hat=fit$sigma_hat
+  
+  m=nrow(newdata)
+  f=matrix(0,nrow=m,ncol=K)
+  px=rep(0,m)
+  posterior=matrix(0,nrow=m,ncol=K)
+  
+  for (i in 1:m){
+    for (j in 1:K){
+      #f[i,j]=((2*pi)^(-p/2))*det(sigma_hat)^(-0.5)*exp(-0.5*(newdata[i,]-mu_hat[j,])%*%solve(sigma_hat)%*%(newdata[i,]-mu_hat[j,]))
+      f[i,j]=dmvnorm(newdata[i,], mu_hat[j,], sigma_hat, log = FALSE)
+      ## no need to calculate the inverse? Why?
+      px[i]=px[i]+pi_hat[j]*f[i,j]
+    }
+  }
+  for (i in 1:m){
+    for (j in 1:K){
+      posterior[i,j]=pi_hat[j]*f[i,j]/px[i]
+    }
+  }
+  class=y_class[c(apply(posterior,1,which.max))]
+  return(list("class"=class,"posterior"=posterior))
+}
+```
+
+```{r}
+# 1.3) Classification with LDA
+data(iris)
+training <- c(1:47, 51:97, 101:146)
+Xtrain=as.matrix(iris[,-5][training,])
+ytrain=iris[5][training,]
+lda.fit=lda_fit(Xtrain,ytrain)
+lda.fit
+
+testing <- c(48:50, 98:100, 147:150)
+Xtest=as.matrix(iris[,-5][testing,])
+ytest=iris[5][testing,]
+lda.predict=lda_predict(lda.fit,Xtest)
+lda.predict
+```
+
+## 2) QDA
+
+```{r}
+# 2.1) Function qda_fit()
+
+qda_fit<-function(X,y){
+  y_class=unique(y)
+  K=length(y_class)
+  p=ncol(X)
+  
+  pi_hat=rep(0,K)
+  names(pi_hat)=y_class
+  mu_hat=matrix(0,nrow=K,ncol=p)
+  sigma_hat=array(0,dim=c(p,p,K))
+  for (i in 1:K){
+    nk=sum(y==y_class[i])
+    pi_hat[i]=sum(y==y_class[i])/(nrow(X))
+    mu_hat[i,]=apply(X[y==y_class[i],],2,mean)
+    X_centred=X[y==y_class[i],]-mu_hat[i,]
+    sigma_hat[,,i]=(t(X_centred)%*%X_centred)/(nk-1)
+  }
+  
+  return(list("pi_hat"=pi_hat,"mu_hat"=mu_hat,"sigma_hat"=sigma_hat))
+}
+```
+
+```{r}
+# 2.2) Function qda_predict()
+qda_predict<-function(fit,newdata){
+  
+  y_class=names(fit$pi_hat)
+  K=length(y_class)
+  pi_hat=fit$pi_hat
+  mu_hat=fit$mu_hat
+  sigma_hat=fit$sigma_hat
+  
+  m=nrow(newdata)
+  f=matrix(0,nrow=m,ncol=K)
+  px=rep(0,m)
+  posterior=matrix(0,nrow=m,ncol=K)
+  
+  for (i in 1:m){
+    for (j in 1:K){
+      f[i,j]=dmvnorm(newdata[i,], mu_hat[j,], sigma_hat[,,j], log = FALSE)
+      ## no need to calculate the inverse? Why?
+      px[i]=px[i]+pi_hat[j]*f[i,j]
+    }
+  }
+  for (i in 1:m){
+    for (j in 1:K){
+      posterior[i,j]=pi_hat[j]*f[i,j]/px[i]
+    }
+  }
+  class=y_class[c(apply(posterior,1,which.max))]
+  return(list("class"=class,"posterior"=posterior))
+}
+
+```
+
+
+```{r}
+# 2.3) Classification with QDA
+
+training <- c(1:47, 51:97, 101:146)
+Xtrain=as.matrix(iris[,-5][training,])
+ytrain=iris[5][training,]
+qda.fit=qda_fit(Xtrain,ytrain)
+qda.fit
+
+testing <- c(48:50, 98:100, 147:150)
+Xtest=as.matrix(iris[,-5][testing,])
+ytest=iris[5][testing,]
+qda.predict=qda_predict(qda.fit,Xtest)
+qda.predict
+
+```
+
+
+## 3) k-Nearest Neighbors
+
+```{r}
+# 3.1) Function knn_predict()
+knn_predict<-function(X_train,X_test,y_train,k){
+  X_train=as.matrix(X_train)
+  X_test=as.matrix(X_test)
+  y_class=unique(y_train)
+  K=length(y_class)
+  
+  prob=matrix(0,nrow=nrow(X_test),ncol=K)
+  dist_mean=matrix(0,nrow=nrow(X_train),ncol=ncol(X_train))
+
+  for (i in 1:nrow(X_test)){
+    #note: directly using apply(X_train-X_test[i,],1,sum) does not work correctly
+    #question: how to calculate a matrix substracting each row by a vector?
+    for (s in 1:ncol(X_test)){
+      dist_mean[,s]=(X_train[,s]-X_test[i,s])^2
+    }
+    
+    dist=apply(dist_mean,1,sum)
+    neighbors=sort(dist,index.return=T)$ix
+    kindex=neighbors[1:k]
+    for (j in 1:K){
+      prob[i,j]=sum(y_train[kindex]==y_class[j])/k
+    }
+  }
+  return(y_class[c(apply(prob,1,which.max))])
+}
+
+```
+
+```{r}
+# 3.2) Classification with k-NN
+training <- c(1:47, 51:97, 101:146)
+testing <- c(48:50, 98:100, 147:150)
+train_set <- iris[training, ]
+test_set <- iris[testing, ]
+pred_knn <- knn_predict(train_set[,-5], test_set[,-5],train_set$Species, k=1)
+pred_knn
+```
+
+```{r}
+# 3.3) k-NN CV
+#implement a function called find_kcv() that finds the optimal k based on CV-misclassification rate.
+
+set.seed(123)
+library("caret")
+
+find_kcv<-function(X_train,Y_train,k,nfold){
+  X_train=as.matrix(X_train)
+  
+  folds=createFolds(1:nrow(X_train),k=nfold)
+  kfold_misclasRate=sapply(folds,function(ind){
+    sapply(k,function(ki){
+      knn.pre=knn_predict(X_train[-ind,],X_train[ind,],Y_train[-ind],ki)
+      1-sum(knn.pre==Y_train[ind])/length(Y_train[ind])
+    })
+  })
+  return(which.min(apply(kfold_misclasRate,1,mean)))
+}
+
+find_kcv(train_set[ , -5], train_set[ , 5],1:10,5)
+```
+
+
+## 4) Confusion matrix
+
+```{r}
+set.seed(100)
+train_idx <- sample(nrow(iris), 90) 
+train_set <- iris[train_idx, ]
+test_set <- iris[-train_idx, ]
+
+Xtrain=apply(train_set[,-5],2,as.numeric)
+ytrain=train_set[,5]
+Xtest=apply(test_set[,-5],2,as.numeric)
+ytest=test_set[,5]
+
+y_class=unique(ytest)
+
+lda.fit=lda_fit(Xtrain,ytrain)
+lda.predict=lda_predict(lda.fit,Xtest)$class
+
+lda_df=data.frame(y=ytest,y_predict=lda.predict)
+lda.table=table(lda_df)
+lda.table
+
+qda.fit=qda_fit(Xtrain,ytrain)
+qda.predict=qda_predict(qda.fit,Xtest)$class
+
+qda_df=data.frame(y=ytest,y_predict=qda.predict)
+qda.table=table(qda_df)
+qda.table
+
+k=find_kcv(Xtrain,ytrain,1:10,5)
+knn.predict=knn_predict(Xtrain,Xtest,ytrain,k)
+knn_df=data.frame(y=ytest,y_predict=knn.predict)
+knn.table=table(knn_df)
+knn.table
+
+# compute test error rate
+test_err_lda=1-sum(diag(lda.table))/sum(lda.table)
+test_err_lda
+test_err_qda=1-sum(diag(qda.table))/sum(qda.table)
+test_err_qda
+test_err_knn=1-sum(diag(knn.table))/sum(knn.table)
+test_err_knn
+
+```
+
+Comment on the comparison of LDA, QDA, and k-NN.
+Ans:in this case, lda is the most accurate method. Since QDA has more flexibility than LDA, it also suffers more variability. LDA > KNN > QDA in this case.
+

@@ -1,0 +1,392 @@
+---
+title: "hw 6"
+author: "Priscilla"
+date: "10/19/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/hw/hw 6")
+library(ggplot2)
+library(dplyr)
+library(stargazer)
+```
+
+## Part 0) Data and Model
+
+```{r}
+data1=read.csv("winequality-red.csv",sep=";",header=TRUE)
+data2=read.csv("winequality-white.csv",sep=";",header=TRUE)
+data=rbind(data1,data2)
+data=data.frame(scale(data))
+```
+
+
+```{r}
+#Toy Model
+
+x=model.matrix(pH~.,data)[,c(-1,-12)]
+y=data$pH
+
+lm=lm(y~x)
+stargazer(lm, type = 'text') #use star gazer to produce pretty table
+```
+
+## Part 2) Data Splitting
+
+You will use a three-way hold-out method. Recall that this approach involves randomly splitting the available data into three non-overlapping sets:
+1) a training set: 60% of the data (randomly sampled)
+2) a validation set: 20% of the data (i.e. one half of the remaining 40% not in training,
+randomly sampled)
+3) a test set: 20% of the data (i.e. the other half of the remaining 40% not in training, randomly sampled)
+
+
+```{r}
+set.seed(1)
+
+train=sample(1:nrow(x),nrow(x)*0.6)
+val=sample(train,nrow(x)*0.2)
+test=(-c(train,val))
+
+
+data_train=data[train,]
+data_val=data[val,]
+data_test=data[test,]
+
+x_train=x[train,] # already converted data into df, why still matrix here?
+y_train=y[train]
+x_val=x[val,]
+y_val=y[val]
+x_test=x[test,]
+y_test=y[test]
+```
+
+
+
+## Part 3) Training Phase and Regularizing Effects
+
+```{r}
+# 3.1 OLS Regression (OLS)
+x=scale(x)
+y=scale(y)
+
+lm=lm(y~x,subset=train)
+lm$coefficients
+```
+
+```{r}
+# 3.2 Principal Components Regression (PCR)
+library(pls)
+pcr.fit=pcr(y~x,subset=train,scale=T)
+```
+
+```{r}
+# number of components - standard coefficients graph
+plotData=data.frame(t(pcr.fit$coefficients[,1,]))
+
+ggplot() + theme_bw() +
+  geom_line(aes(x = 1:10, y = plotData$fixed.acidity, color = 'fixedAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$volatile.acidity, color = 'volAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$citric.acid, color = 'citricAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$residual.sugar, color = 'resSugar')) +
+  geom_line(aes(x = 1:10, y = plotData$chlorides, color = 'chlorides')) +
+  geom_line(aes(x = 1:10, y = plotData$free.sulfur.dioxide, color = 'freeSO2')) +
+  geom_line(aes(x = 1:10, y = plotData$total.sulfur.dioxide, color = 'totalSO2')) +
+  geom_line(aes(x = 1:10, y = plotData$density, color = 'density')) +
+  geom_line(aes(x = 1:10, y = plotData$sulphates, color = 'sulphates')) +
+  geom_line(aes(x = 1:10, y = plotData$alcohol, color = 'alcohol')) +
+  labs(
+    x = "Number of PCs",
+    y = "Coefficients",
+    title = "The Comparison of the Coefficients in the Model"
+  )
+```
+
+```{r}
+# 3.3 Partial Least Squares Regression (PLSR)
+pls.fit=plsr(y~x,subset=train,scale=TRUE)
+```
+
+```{r}
+# number of components - standard coefficients graph
+plotData <- data.frame(t(pls.fit$coefficients[,1,]))
+ggplot() + theme_bw() +
+  geom_line(aes(x = 1:10, y = plotData$fixed.acidity, color = 'fixedAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$volatile.acidity, color = 'volAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$citric.acid, color = 'citricAcid')) +
+  geom_line(aes(x = 1:10, y = plotData$residual.sugar, color = 'resSugar')) +
+  geom_line(aes(x = 1:10, y = plotData$chlorides, color = 'chlorides')) +
+  geom_line(aes(x = 1:10, y = plotData$free.sulfur.dioxide, color = 'freeSO2')) +
+  geom_line(aes(x = 1:10, y = plotData$total.sulfur.dioxide, color = 'totalSO2')) +
+  geom_line(aes(x = 1:10, y = plotData$density, color = 'density')) +
+  geom_line(aes(x = 1:10, y = plotData$sulphates, color = 'sulphates')) +
+  geom_line(aes(x = 1:10, y = plotData$alcohol, color = 'alcohol')) +
+  labs(
+    x = "Number of Dimensions",
+    y = "Coefficients",
+    title = "The Comparison of the Coefficients"
+  )
+
+```
+
+```{r}
+# 3.4 Ridge Regression (RR)
+library(glmnet)
+grid=seq(0, 0.45, 0.05)
+ridge.mod=glmnet(scale(x_train),scale(y_train),alpha=0,lambda=grid)
+plotData=data.frame(t(as.matrix(ridge.mod$beta)))
+
+ggplot()+theme_bw()+
+  geom_line(aes(x=seq(0.45,0,-0.05), y=plotData$fixed.acidity, color="fixedAcid"))+
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$volatile.acidity, color ='volAcid')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$citric.acid, color = 'citricAcid')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$residual.sugar, color = 'resSugar')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$chlorides, color = 'chlorides')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$free.sulfur.dioxide, color = 'freeSO2')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$total.sulfur.dioxide, color = 'totalSO2')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$density, color = 'density')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$sulphates, color = 'sulphates')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$alcohol, color = 'alcohol')) +
+  labs(
+    x = "Lambda",
+    y = "Coefficients",
+    title = "The Comparison of the Coefficients"
+  )
+
+```
+
+```{r}
+# 3.5 Lasso Regression
+library(glmnet)
+grid=c(0, 0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1, 0.25)
+lasso.mod=glmnet(scale(x_train),scale(y_train),alpha=1,lambda=grid)
+plotData=data.frame(t(as.matrix(lasso.mod$beta)))
+ggplot() + theme_bw() +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$fixed.acidity, color = 'fixedAcid')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$volatile.acidity, color = 'volAcid')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$citric.acid, color = 'citricAcid')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$residual.sugar, color = 'resSugar')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$chlorides, color = 'chlorides')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$free.sulfur.dioxide, color = 'freeSO2')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$total.sulfur.dioxide, color = 'totalSO2')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$density, color = 'density')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$sulphates, color = 'sulphates')) +
+  geom_line(aes(x = seq(0.45,0,-0.05), y = plotData$alcohol, color = 'alcohol')) +
+  labs(
+    x = "Lambda",
+    y = "Coefficients",
+    title = "The Comparison of the Coefficients"
+  )
+```
+
+
+## Part 4) Training Phase and Cross-Validation
+
+```{r}
+# 4.1) Creating 5-Folds
+data_train=data_train%>%
+  mutate(instant = 1:nrow(data_train), fold = 0)
+tdata=data_train
+
+for (i in 1:5){
+  n = 780
+  if (i == 5){n = 778}
+  temp <-  sample_n(tdata, n)
+  tdata <- tdata %>%
+    filter(!(instant %in% temp$instant))
+  data_train[data_train$instant %in% temp$instant,] <- data_train %>%
+    filter(instant %in% temp$instant) %>%
+    mutate(fold = i)
+}
+```
+
+```{r}
+# 4.2) 5-Fold Cross-Validation Process
+
+
+# pcr
+
+data_train <- data_train %>% select(-instant)
+MSE = matrix(rep(0,50), nrow = 5)
+for (i in 1:5){
+  for (j in 1:10){
+    trainingSet <- data_train %>%
+      filter(fold != i)
+    test <- data_train %>%
+      filter(fold == i)
+    test <- test %>%
+      select(-fold)
+    pcr.fit <- pcr(pH ~ .-fold, data = trainingSet, scale = T)
+    
+    pred <- test %>% pull(-pH) %*% t(pcr.fit$coefficients[,,j])
+    MSE[i,j] = mean((pred - test$pH)^2)
+  }
+}
+MSE
+
+which.min(apply(MSE,2,mean))
+
+#pcr.fit=pcr(y~x,subset=train,scale=TRUE,validation="CV",segments=5)
+#summary(pcr.fit)
+
+# pls
+
+MSE = matrix(rep(0,50), nrow = 5)
+for (i in 1:5){
+  for (j in 1:10){
+    trainingSet <- data_train %>%
+      filter(fold != i)
+    test <- data_train %>%
+      filter(fold == i)
+    test <- test %>%
+      select(-fold)
+    plsr.fit <- plsr(pH ~ .-fold, data = trainingSet, scale = T)
+    
+    pred <- test %>% pull(-pH) %*% t(plsr.fit$coefficients[,,j])
+    MSE[i,j] = mean((pred - test$pH)^2)
+  }
+}
+MSE
+
+which.min(apply(MSE,2,mean))
+
+#pls.fit=plsr(y~x,subset=train,scale=TRUE,validation="CV",segments=5)
+#summary(pls.fit)
+
+
+# ridge
+
+MSE = matrix(rep(0,50), nrow = 5)
+for (i in 1:5){
+  num = 1
+  for (j in seq(0,9,1)){
+    trainingSet <- data_train %>%
+      filter(fold != i)
+    test <- data_train %>%
+      filter(fold == i)
+    test <- test %>%
+      select(-fold)
+    ridge.mod <- glmnet(as.matrix(trainingSet %>% select(-pH)), as.matrix(trainingSet$pH), alpha = 0, lambda = j)
+    
+    pred <- test %>% pull(-pH) %*% t(ridge.mod$beta)
+    MSE[i,num] = mean((pred - test$pH)^2)
+    num = num + 1
+  }
+}
+MSE
+
+which.min(apply(MSE,2,mean))
+# grid=seq(0, 0.45, 0.05)
+# ridge.mod=glmnet(x[train,],y[train],alpha=0,lambda=grid)
+# cv.out_r=cv.glmnet(x[train,],y[train],nfolds=5,alpha=0)
+# plot(cv.out_r)
+# bestlam_ridge=cv.out_r$lambda.min
+# bestlam_ridge
+# min(cv.out_r$cvm)
+
+
+# lasso
+
+MSE = matrix(rep(0,50), nrow = 5)
+for (i in 1:5){
+  num = 1
+  for (j in seq(0,0.45,0.05)){
+    trainingSet <- data_train %>%
+      filter(fold != i)
+    test <- data_train %>%
+      filter(fold == i)
+    test <- test %>%
+      select(-fold)
+    lasso.mod <- glmnet(as.matrix(trainingSet %>% select(-pH)), as.matrix(trainingSet$pH), alpha = 1, lambda = j)
+    
+    pred <- test %>% pull(-pH) %*% t(lasso.mod$beta)
+    MSE[i,num] = mean((pred - test$pH)^2)
+    num = num + 1
+  }
+}
+MSE
+
+which.min(apply(MSE,2,mean))
+# grid=c(0, 0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1, 0.25)
+# lasso.mod=glmnet(x[train,],y[train],alpha=1,lambda=grid)
+# cv.out_l=cv.glmnet(x[train,],y[train],nfolds=5,alpha=1)
+# bestlam_lasso=cv.out_l$lambda.min
+# bestlam_lasso
+# min(cv.out_l$cvm)
+
+# 4.3) Comparative Table of Regression Coefficients
+pcr.fit1=pcr(y~x,subset=train,scale=TRUE,validation="CV",segments=5,ncomp=3)
+pls.fit1=plsr(y~x,subset=train,scale=TRUE,validation="CV",segments=5,ncomp=1)
+out1=cbind(coef(pcr.fit1),coef(pls.fit1))
+rownames(out1)=rownames(coef(pcr.fit1))
+colnames(out1)=c("pcr","pls")
+out1
+
+ridge.mod=glmnet(x[train,],y[train],alpha=0,lambda=3)
+lasso.mod=glmnet(x[train,],y[train],alpha=1,lambda=0.2)
+lm.fit=lm(y[train]~x[train,])
+out2=cbind(coef(ridge.mod),coef(lasso.mod),coef(lm.fit))
+colnames(out2)=c("ridge","lasso","ols")
+out2
+
+```
+
+
+## Part 5) Model Selection: Best Regression Method
+
+```{r}
+pcr.fit=pcr(y~x,subset=train,scale=TRUE,ncomp=3)
+pcr.pre=predict(pcr.fit,x[val,],ncomp=3)
+mean((pcr.pre-y[val])^2)
+```
+
+
+```{r}
+pls.fit=plsr(y~x,subset=train,scale=TRUE,ncomp=1)
+pls.pre=predict(pls.fit,x[val,],ncomp=1)
+mean((pls.pre-y[val])^2)
+```
+
+
+```{r}
+ridge.mod=glmnet(x[train,],y[train],alpha=0,lambda=3)
+ridge.pre=predict(ridge.mod,s=3,newx=x[val,])
+mean((ridge.pre-y[val])^2)
+```
+
+
+```{r}
+lasso.mod=glmnet(x[train,],y[train],alpha=1,lambda=0.2)
+lasso.pre=predict(lasso.mod,s=0.2,newx=x[val,])
+mean((lasso.pre-y[val])^2)
+```
+
+```{r}
+x_val=cbind(1,x[val,])
+mean((y[val]-x_val%*%lm.fit$coefficients)^2)
+```
+
+
+## Part 6) Final Model and its Performance
+
+From part5, we know that plsr should be the best model.
+
+```{r}
+# 6.1 Performance of Winning Model
+test=(-c(train,val))
+pls.pre=predict(pls.fit,x[test,],ncomp=1)
+mean((pls.pre-y[test])^2)
+# lasso.mod=glmnet(x[test,],y[test],alpha=1,lambda=bestlam_lasso)
+# lasso.pre=predict(lasso.mod,s=bestlam_lasso,newx=x[test,])
+# mean((lasso.pre-y[test])^2)
+```
+
+```{r}
+# 6.2 Final Model
+pls.fit=plsr(y~x,scale=TRUE,ncomp=1)
+coef(pls.fit)
+# lasso.mod=glmnet(x,y,alpha=1,lambda=bestlam_lasso)
+# lasso.coef=predict(lasso.mod,type="coefficients",s=bestlam_lasso)
+# lasso.coef
+```
+

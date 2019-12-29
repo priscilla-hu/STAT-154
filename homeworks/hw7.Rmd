@@ -1,0 +1,182 @@
+---
+title: "hw7"
+author: "Priscilla Hu"
+date: "10/29/2019"
+output: pdf_document
+---
+```{r}
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/hw/hw5")
+# synthetic data
+set.seed(12345)
+x <- runif(-2, 2, n = 100)
+f <- function(u) {
+  return(sin(pi*u) + u^2) }
+y <- f(x) + rnorm(length(x), sd = 0.2)
+```
+
+```{r}
+
+kNNW <- function(x, y, z, k, p) {
+  f_hat=1:length(z)
+  for (i in 1:length(z)){
+    dist=((abs(x-z[i]))^p)^(1/p)
+    neighbors=sort(dist,index.return=T)$ix
+    kindex=neighbors[1:k] #find the indices of k nearest points
+    
+    dist_neighbors=dist[kindex]
+    dist_sum=sum(exp(dist_neighbors))
+    weight=exp(dist_neighbors)/dist_sum
+    
+    f_hat[i]=sum(weight*y[kindex])
+  }
+  return(f_hat)
+}
+```
+
+
+
+
+```{r}
+# one query point, k = 10 neighbors, manhattan distance
+yhat = kNNW(x, y, z = 0, k = 10, p = 1)
+
+# one query point, k = 50 neighbors, manhattan distance
+yhat = kNNW(x, y, z = 0, k = 50, p = 1)
+
+# various query points, k = 50 neighbors, manhattan distance
+yhat = kNNW(x, y, z = c(-0.5, 0, 0.5), k = 50, p = 1)
+
+# in this simple situation, p=1 and p=2 gives the same result.
+color=2:6
+plot(x,y,ylim=c(-5,5))
+K_set=c(10,30,50,70,100)
+for (i in 1:5){
+  yhat = kNNW(x, y, z=seq(-2,2,0.1), k = K_set[i], p = 1)
+  points(seq(-2,2,0.1),yhat,pch=16,col=color[i])
+}
+legend("bottomright", legend = paste("K=", K_set), col = color, pch = 19, bty = "n")
+
+```
+
+## Problem 6
+
+a) Use the poly() function to fit a cubic polynomial regression to predict nox using dis. Report the regression output, and plot the resulting data and polynomial fits.
+
+```{r}
+library(MASS)
+library(ggplot2)
+data('Boston')
+y=Boston$nox
+x=Boston$dis
+fit=lm(y~poly(x,3))
+#Report the regression output
+summary(fit)
+
+#plot the resulting data and polynomial fits.
+ggplot()+theme_bw()+geom_point(aes(x,y))+geom_point(aes(x,predict(fit)),col=122)+geom_line(aes(x,predict(fit)),col=223)
+
+```
+
+b) Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+```{r}
+library(ggplot2)
+RSS=c()
+#Plot the polynomial fits for a range of different polynomial degrees
+for (i in 1:10){
+  fit <- lm(y~poly(x, degree = i,raw = T))
+  print(ggplot() + theme_bw() +geom_point(aes(x,y))+ geom_point(aes(x, y = fit$fitted.values), color ="red")+geom_line(aes(x,fit$fitted.values)))
+  #report the associated residual sum of squares.
+  RSS = c(RSS, sum(fit$residuals^2))
+  print(paste("The RSS of the model with degrees ", i, " is ", RSS[i],".", sep = ""))
+}
+```
+
+c) Perform cross-validation or another approach to select the optimal degree for the poly- nomial, and explain your results.
+```{r}
+# K fold cross validation
+library(ISLR)
+library(boot)
+set.seed(17)
+cv.err=rep(0,10)
+for (i in 1:10){
+  glm.fit=glm(nox~poly(dis,i),data=Boston)
+  cv.err[i]=cv.glm(Boston,glm.fit,K=10)$delta[1]
+}
+which.min(cv.err)
+```
+Therefore, we select k=3.
+
+d) Use the bs() function to fit a regression spline to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.
+```{r}
+library(splines)
+#The knots are chosen by the quantiles of the data
+quantile(x)
+
+model <- lm(nox~bs(dis,knots=c(2.1,3.2,5.2)),data=Boston)
+attach(Boston)
+preds=predict(model,newdata=list(dis=seq(from = min(dis), to = max(dis))),se=TRUE)
+plot(x, y, col="gray")
+lines(seq(from = min(dis), to = max(dis)),preds$fit,lwd=2)
+lines(seq(from = min(dis), to = max(dis)),(preds$fit +2*preds$se) ,lty="dashed")
+lines(seq(from = min(dis), to = max(dis)),(preds$fit -2*preds$se) ,lty="dashed")
+```
+
+
+e) Now fit a regression spline for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. Describe the results obtained.
+```{r}
+# Note that in the plot we only choose some sample points, # presenting a broken line instead of a curve
+library(dplyr)
+trainingSet <- Boston %>% dplyr::select(dis, nox)
+trainingSet <- mutate(trainingSet,instant = 1:nrow(trainingSet), fold = 0) 
+tempdata <- trainingSet
+
+RSS=c()
+for (i in 1:10){
+  fit <- lm(nox~bs(dis,knots=c(2.1,3.2,5.2), degree = i),data=trainingSet)
+  preds=predict(fit,newdata=list(dis=seq(from = min(dis), to = max(dis))),se=TRUE)
+  plot(x, y, col="gray")
+  lines(seq(from = min(dis), to = max(dis)),preds$fit,lwd=2)
+  lines(seq(from = min(dis), to = max(dis)),(preds$fit +2*preds$se) ,lty="dashed") 
+  lines(seq(from = min(dis), to = max(dis)),(preds$fit -2*preds$se) ,lty="dashed") 
+  title(paste("Spline With Degree ", i, sep = ""))
+  RSS=c(RSS,sum(fit$residuals^2))
+}
+names(RSS)=paste("degree",1:10)
+RSS
+```
+
+
+f) Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data. Describe your results.
+```{r}
+# Cross-validation
+
+#divide your training set into five sets
+for (i in 1:5){
+  num = 100
+  if (i == 5){num = 106}
+  temp <- sample_n(tempdata, num)
+  tempdata <- filter(tempdata,!(instant %in% temp$instant))
+  trainingSet[trainingSet$instant %in% temp$instant,] <- trainingSet %>% filter(instant %in% temp$instant) %>%
+mutate(fold = i) }
+
+
+MSE = matrix(0, nrow = 5, ncol = 9)
+
+for (i in 1:5){
+  train = filter(trainingSet,fold != i)
+  test = filter(trainingSet,fold == i) 
+  for (j in 2:10){
+    model <- smooth.spline(x = train$dis, y = train$nox, df = j) 
+    yfit = predict(model, test$dis)$y
+    MSE[i,j-1] = mean((test$nox - yfit)^2)
+    } 
+}
+which.min(apply(MSE, 2, mean)) + 1
+```
+
+```{r}
+ # The best model is the 10th degree smooth-spline
+ggplot() + geom_line(aes(x = 2:10, y = apply(MSE, 2, mean)), color = "red") + theme_bw()
+```
+
+

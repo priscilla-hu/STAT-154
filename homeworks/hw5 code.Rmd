@@ -1,0 +1,351 @@
+---
+title: "hw 5"
+author: "Priscilla"
+date: "10/10/2019"
+output: pdf_document
+---
+---
+title: "hw5"
+author: "Priscilla"
+date: "10/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# assembling url
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/hw/hw5")
+
+uci <- 'https://archive.ics.uci.edu/ml/machine-learning-databases/'
+zip <- '00275/Bike-Sharing-Dataset.zip'
+url <- paste0(uci, zip)
+# download zip file, and unzip its contents in your working directory
+download.file(url, 'Bike-Sharing-Dataset.zip')
+unzip('Bike-Sharing-Dataset.zip')
+data('Bike-Sharing-Dataset')
+```
+
+
+## Problem 3) Bike Sharing: Fitting Models
+
+• Import the file day.csv
+
+```{r}
+mydata <- read.table("day.csv", header=TRUE,sep=",")
+#mydata
+```
+
+• Subset those observations of yr == 0 (i.e. year 2011).
+
+```{r}
+mydata=mydata[mydata$yr==0,]
+```
+
+• Create a new binary variable clearday by selecting weathersit == 1. In other words,
+values with weathersit == 1 should be assigned to one, while the rest should be assigned to zero.
+
+```{r}
+mydata$clearday[mydata$weathersit==1]=1
+mydata$clearday[mydata$weathersit!=1]=0
+#mydata
+```
+
+3.2) Fitting models
+Use lm() or a similar function to fit the following regression models to predict ridership— variable registered—on the data of year 2011. Display the fitted models (e.g. estimated coefficients).
+
+```{r,message=FALSE}
+
+attach(mydata)
+
+lm1=lm(registered~temp)
+  
+X2=cbind(temp,temp^2)
+lm2=lm(registered~X2)
+  
+X3=cbind(temp,temp^2,workingday)
+lm3=lm(registered~X3)
+  
+X4=cbind(temp,temp^2,workingday,clearday)
+lm4=lm(registered~X4)
+  
+X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+lm5=lm(registered~X5)  
+
+detach(mydata)
+```
+
+
+3.3) Basic Models Comparison
+
+• Compute the MSE for each fitted model.
+
+```{r,message=FALSE}
+#lm_list=cbind(lm1,lm2,lm3,lm4,lm5)
+attach(mydata)
+MSE_train=c()
+#for (i in 1:5){
+#  MSE_train=c(MSE_train,mean(lm_list['residuals',i]^2))
+#}
+
+MSE_train[1]=mean(lm1$residuals^2)
+MSE_train[2]=mean(lm2$residuals^2)
+MSE_train[3]=mean(lm3$residuals^2)
+MSE_train[4]=mean(lm4$residuals^2)
+MSE_train[5]=mean(lm5$residuals^2)
+detach(mydata)
+MSE_train
+```
+
+• Plot the (in-sample) MSEs against the number of regressor terms in each model. We will treat the number of regressor terms as the “complexity” of the models.
+
+```{r}
+plot(1:5,type="l",MSE_train,xlab="comlexity")
+```
+
+• Which model has the smallest in-sample MSE? Model 5.
+
+• Do you observe any trend in the graph? Yes. Training MSE decreases when adding more comlexity.
+
+
+## Problem 4) Bike Sharing: Hold-Out method
+
+• Select 20% of your dataset as holdout. You should use simple random sampling. Before generating the sample, specify a random seed for reproducibility purposes, e.g. using set.seed().
+
+```{r}
+set.seed(233)
+x=1:nrow(mydata)
+data_train_n=sample(x,size=nrow(mydata)*0.8)
+data_train=mydata[data_train_n,]
+#data_train
+data_test=mydata[-data_train_n,]
+#data_test
+```
+
+• For each of the regression models in Problem 3, train on the remaining 80% of the data, predict the holdout data, and compute the test MSE.
+
+```{r,message=FALSE}
+
+attach(data_train)
+
+lm1=lm(registered~temp)
+  
+X2=cbind(temp,temp^2)
+lm2=lm(registered~X2)
+
+X3=cbind(temp,temp^2,workingday)
+lm3=lm(registered~X3)
+  
+X4=cbind(temp,temp^2,workingday,clearday)
+lm4=lm(registered~X4)
+  
+X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+lm5=lm(registered~X5)
+detach(data_train)
+```
+
+• Plot the training and test MSEs, and identify which model gives the lowest holdout test MSE.
+
+Answer: Model 5 gives the lowest MSE.
+
+```{r,message=FALSE}
+MSE_train=c()
+
+attach(data_train)
+MSE_train[1]=mean(lm1$residuals^2)
+MSE_train[2]=mean(lm2$residuals^2)
+MSE_train[3]=mean(lm3$residuals^2)
+MSE_train[4]=mean(lm4$residuals^2)
+MSE_train[5]=mean(lm5$residuals^2)
+detach(data_train)
+MSE_train
+
+y_fit<-function(x,lm_n){
+  x=cbind(1,x)
+  y_fit=x%*%lm_n$coefficients
+  return(y_fit)
+}
+
+attach(data_test)
+
+MSE_test=c()
+MSE_test[1]=mean((registered-y_fit(temp,lm1))^2)
+MSE_test[2]=mean((registered-y_fit(X2,lm2))^2)
+MSE_test[3]=mean((registered-y_fit(X3,lm3))^2)
+MSE_test[4]=mean((registered-y_fit(X4,lm4))^2)
+MSE_test[5]=mean((registered-y_fit(X5,lm5))^2)
+detach(data_test)
+MSE_test
+
+plot(1:5,MSE_train,col="blue",type="l",ylim=c(400000,2000000),ylab="MSE")
+par(new=TRUE)
+plot(1:5,MSE_test,col="red",type="l",ylim=c(400000,2000000),ylab="MSE")
+legend("topright",c("training MSE","test MSE"),col=c("blue","red"),pch=c(15,16,17),lty=c(1,2,3))
+
+```
+
+
+## Problem 5) Bike Sharing: Cross-validation
+
+Another validation approach is Cross Validation, which is an alternative to the holdout method.
+5.1) 10-Folds and test MSEs
+Create 10 folds to perform cross validation to estimate the prediction error. Specifically, • For each fold,
+For each regression model,
+• Train the model based on all observations except the ones in the fold. Predict the observation in the fold.
+• Compute the fold MSE—i.e. MSEfold.
+• Compute the cross-validation MSE—MSECV —for each regression model.
+
+```{r,message=FALSE}
+n=nrow(mydata)%/%10
+MSE_fold=matrix(ncol=5,nrow=10)
+MSE_CV=c()
+colnames(MSE_fold)=c("model1","model2","model3","model4","model5")
+for (i in 1:10){
+  
+  if (i<6){
+    test_cv=mydata[((i-1)*n+1):(i*n),]
+    train_cv=mydata[-(((i-1)*n+1):i*n),]
+  }
+  else{
+    test_cv=mydata[(180+(i-6)*(n+1)):(180+(i-5)*(n+1)),]
+    train_cv=mydata[-((180+(i-6)*(n+1)):(180+(i-5)*(n+1))),]  
+  }
+  
+  
+  attach(train_cv)
+
+  lm1=as.list(lm(registered~temp))
+  
+  X2=cbind(temp,temp^2)
+  lm2=as.list(lm(registered~X2))
+  
+  X3=cbind(temp,temp^2,workingday)
+  lm3=as.list(lm(registered~X3))
+  
+  X4=cbind(temp,temp^2,workingday,clearday)
+  lm4=as.list(lm(registered~X4))
+  
+  X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+  lm5=as.list(lm(registered~X5))
+  detach(train_cv)
+  
+  #predict the observation in the fold and compute fold MSE
+  attach(test_cv)
+  X2=cbind(temp,temp^2)
+  X3=cbind(temp,temp^2,workingday)
+  X4=cbind(temp,temp^2,workingday,clearday)
+  X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+  
+  MSE_fold[i,1]=mean((registered-y_fit(temp,lm1))^2)
+  MSE_fold[i,2]=mean((registered-y_fit(X2,lm2))^2)
+  MSE_fold[i,3]=mean((registered-y_fit(X3,lm3))^2)
+  MSE_fold[i,4]=mean((registered-y_fit(X4,lm4))^2)
+  MSE_fold[i,5]=mean((registered-y_fit(X5,lm5))^2)
+  detach(test_cv)
+}
+
+head(MSE_fold)
+```
+
+
+5.2) CV-MSE
+1. Calculate the CV-MSE for each model.
+
+```{r}
+MSE_CV=apply(MSE_fold,2,mean)
+MSE_CV
+```
+
+2. Plot the CV-MSEs against the order of the regression models.
+
+```{r}
+plot(1:5,MSE_CV,xlab="model")
+```
+
+3. Which model gives the lowest CV-MSEs? Is it reasonable? Why or why not?
+Answer: Model 5 gives the lowest CV-MSE.
+
+
+## Problem 6) Bike Sharing: Bootstrap
+
+```{r,message=FALSE}
+MSE_fold=matrix(ncol=5,nrow=200)
+MSE_CV=c()
+colnames(MSE_fold)=c("model1","model2","model3","model4","model5")
+for (i in 1:200){
+  select=sample(1:nrow(mydata),size=nrow(mydata),replace = TRUE)
+  test_cv=mydata[-select,]
+  train_cv=mydata[select,]
+  #length(unique(train_cv$instant))
+
+  attach(train_cv)
+
+  lm1=lm(registered~temp)
+  
+  X2=cbind(temp,temp^2)
+  lm2=lm(registered~X2)
+  
+  X3=cbind(temp,temp^2,workingday)
+  lm3=lm(registered~X3)
+  
+  X4=cbind(temp,temp^2,workingday,clearday)
+  lm4=lm(registered~X4)
+  
+  X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+  lm5=lm(registered~X5)
+  detach(train_cv)
+  
+  #predict the observation in the fold and compute fold MSE
+  attach(test_cv)
+  X2=cbind(temp,temp^2)
+  X3=cbind(temp,temp^2,workingday)
+  X4=cbind(temp,temp^2,workingday,clearday)
+  X5=cbind(temp,temp^2,workingday,clearday,temp*workingday)
+  
+  MSE_fold[i,1]=mean((registered-y_fit(temp,lm1))^2)
+  MSE_fold[i,2]=mean((registered-y_fit(X2,lm2))^2)
+  MSE_fold[i,3]=mean((registered-y_fit(X3,lm3))^2)
+  MSE_fold[i,4]=mean((registered-y_fit(X4,lm4))^2)
+  MSE_fold[i,5]=mean((registered-y_fit(X5,lm5))^2)
+  detach(test_cv)
+}
+
+```
+
+1. Plot the bootstrap MSEs against each regression model.
+
+```{r}
+MSE_boots=apply(MSE_fold,2,mean)
+plot(1:5,MSE_boots,xlab="model")
+
+
+
+```
+
+2. Which model gives the lowest bootstrap MSEs? Is it reasonable? Why or why not?
+Answer: the 4th model. It's reasonable because model5 uses temp*workday, which my cause overfitting problem.
+Model 4 might be the best model for both lower bias and variance.
+
+```{r}
+MSE_boots
+```
+
+3. For each model, compute the SD of the 200 MSEs. Plot the SD against the model complexity. What do you notice?
+
+```{r}
+MSE_boots_SD=apply(MSE_fold,2,sd)
+plot(1:5,MSE_boots_SD,xlab="model")
+```
+
+4. For each model, make a histogram of the 200 MSEs. What do you notice?
+Answer: When increasing the MSE, MSE_fold becomes more centred.
+
+```{r}
+par(mfrow=c(2,3))
+for (i in 1:5){
+  hist(MSE_fold[,i],breaks=7,main=paste("model",i),xlab="MSE_fold",xlim=c(250000,800000))
+}
+```
+
+5. Based on what you saw in 3 and 4, do you think the bootstrap estimate is reliable? Why or why not?
+
+Answer: Yes. Because it generally agrees with the hold out method but can distiguish overfitting better.
+

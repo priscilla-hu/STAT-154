@@ -1,0 +1,230 @@
+---
+title: "hw8"
+author: "Priscilla Hu"
+date: "11/4/2019"
+output: pdf_document
+---
+## 1) Functions for Sum-of-Squares
+```{r}
+# 1.1) Function tss(), bss()
+data("iris")
+tss <-function(x){
+  return(sum((x-mean(x))^2))
+}
+
+bss<-function(x,cls){
+  df=data.frame(x,cls)
+  s=0
+  for (i in unique(cls)){
+    s=s+sum(df$cls==i)*(mean(df$x[df$cls==i])-mean(x))^2
+  }
+  return(s)
+}
+
+wss<-function(x,cls){
+  class=unique(cls)
+  K=length(class)
+  s=0
+  for (k in 1:K){
+    xk=x[cls==class[k]]
+    s=s+(sum((xk-mean(xk))^2))
+  }
+  return(s)
+}
+
+t=tss(iris$Sepal.Length)
+b=bss(iris$Sepal.Length, iris$Species)
+w=wss(iris$Sepal.Length, iris$Species)
+b+w
+t
+```
+
+## 2) Functions for Ratios of Sum-of-Squares
+
+```{r}
+# function cor_ratio()
+cor_ratio<-function(x,cls){
+  return(bss(x,cls)/tss(x))
+}
+
+cor_ratio(iris$Sepal.Length, iris$Species)
+```
+
+```{r}
+F_ratio<-function(x,cls){
+  K=length(unique(cls))
+  n=length(x)
+  return((bss(x,cls)/(K-1))/(wss(x,cls)/(n-K)))
+}
+F_ratio(iris$Sepal.Length, iris$Species)
+```
+
+## 3) Discriminant Power of Predictors
+
+The first approach consists of computing correlation ratios:
+
+```{r}
+attach(iris)
+library(ggplot2)
+
+#calculate the ratios and make a table
+corr_sl=cor_ratio(Sepal.Length,Species)
+corr_sw=cor_ratio(Sepal.Width,Species)
+corr_pl=cor_ratio(Petal.Length,Species)
+corr_pw=cor_ratio(Petal.Width,Species)
+
+corr=data.frame(
+  predictor=c("Sepal.Length","Sepal.Width","Petal.Length","Petal.Width"),
+  corr_ratios=c(corr_sl,corr_sw,corr_pl,corr_pw)
+  )
+corr=corr[order(corr[,"corr_ratios"]),]
+corr
+
+#display in a bar chart
+base=ggplot(corr,aes(x=corr$predictor,y=corr$corr_ratios))+
+  xlab("Predictor")+ylab("Correlation Ratios")
+base+geom_col(fill="maroon")
+```
+
+The second approach consists of computing F -ratios:
+
+```{r}
+#calculate the F ratios and make a table
+F_sl=F_ratio(Sepal.Length,Species)
+F_sw=F_ratio(Sepal.Width,Species)
+F_pl=F_ratio(Petal.Length,Species)
+F_pw=F_ratio(Petal.Width,Species)
+
+F_ratio=data.frame(
+  predictor=c("Sepal.Length","Sepal.Width","Petal.Length","Petal.Width"),
+  F_ratios=c(F_sl,F_sw,F_pl,F_pw)
+  )
+F_ratio=F_ratio[order(F_ratio[,"F_ratios"]),]
+F_ratio
+
+#display the F-values in a bat chart
+base=ggplot(F_ratio,aes(x=F_ratio$predictor,y=F_ratio$F_ratios))+
+  xlab("Predictor")+ylab("Correlation Ratios")
+base+geom_col(fill="maroon")
+
+```
+
+
+## 4) Variance functions
+
+Rank the predictors (e.g. Sepal.Length, Sepal.Width, Petal.Length, and Petal.Width) using two approaches: 1) correlation ratios, and 2) F- ratios.
+
+```{r}
+# 4.1) Function total_variance()
+total_variance<-function(X){
+  X=as.matrix(scale(X,scale=F))
+  n=nrow(X)
+  return((t(X)%*%X)/(n-1))
+}
+
+# test total_variance()
+total_variance(iris[,1:4])
+
+# compare with var()
+var(iris[ ,1:4])
+
+
+# 4.2) Function between_variance()
+
+# test between_variance()
+between_variance<-function(X,y){
+  X=as.matrix(X)
+  p=ncol(X)
+  n=nrow(X)
+  g=apply(X,2,mean)
+  S=matrix(0,nrow=p,ncol=p)
+  for (i in unique(y)){
+    nk=sum(y==i)
+    S=S+(apply(X[y==i,],2,mean)-g)%*%t((apply(X[y==i,],2,mean)-g))*nk
+  }
+  return(S/(n-1))
+}
+
+between_variance(iris[,1:4], iris$Species)
+
+# 4.3) Function within_variance()
+
+within_variance<-function(X,y){
+  X=as.matrix(X)
+  p=ncol(X)
+  n=nrow(X)
+  W=matrix(0,nrow=p,ncol=p)
+  for (i in unique(y)){
+    Xk=scale(X[y==i,],scale=F)
+    W=W+t(Xk)%*%Xk
+  }
+  return(W/(n-1))
+}
+# test within_variance()
+W=within_variance(iris[,1:4], iris$Species)
+W
+
+# 4.4) Confirm that V=B+W
+# confirm V = B + W
+Viris <- total_variance(iris[ ,1:4]) 
+Viris
+#B+W
+Biris <- between_variance(iris[ ,1:4], iris$Species)
+Wiris <- within_variance(iris[ ,1:4], iris$Species) 
+Biris + Wiris
+```
+
+## 5) Canonicl Discriminant Analysis
+
+```{r}
+# Create the matrix C
+X=as.matrix(iris[,-5])
+y=iris$Species
+
+K=length(unique(y))
+p=ncol(X)
+n=nrow(X)
+C=matrix(0,nrow=p,ncol=K)
+for (k in 1:K){
+  nk=sum(y==unique(y)[k])
+  for (j in 1:p){
+    C[j,k]=(nk/(n-1))^0.5*(mean(X[y==unique(y)[k],j])-mean(X[,j]))
+  }
+}
+
+# obtain w and u
+eig_value=eigen(t(C)%*%solve(W)%*%C)$values
+w=eigen(t(C)%*%solve(W)%*%C)$vectors
+u=solve(W)%*%C%*%w
+
+# z1,z2
+z1=X%*%u[,1]
+z2=X%*%u[,2]
+ggplot(iris,aes(x=z1,y=z2,colour=Species))+geom_point()
+
+#using the first two principle componets
+library("FactoMineR")
+PCA(X)
+```
+
+## 6) CDA for classification
+
+```{r}
+x1 =c(5.0,3.0,1.5,0.5) 
+x2 =c(5.5,3.0,6.0,2.0) 
+x3 =c(6.0,3.0,4.0,1.0) 
+x4 =c(5.0,3.0,1.0,0.5)
+X_pre=rbind(x1,x2,x3,x4)
+
+D=matrix(0,nrow=4,ncol=K)
+for (k in 1:K){
+  gk=apply(X[y==unique(y)[k],],2,mean)
+  for (i in 1:4){
+    D[i,k]=t(X_pre[i,]-gk)%*%solve(W)%*%(X_pre[i,]-gk)
+  }
+}
+D
+apply(D,1,which.min)
+```
+Therefore, x1-Class1, x2-Class3, x3-Class2, x4-Class1.
+
