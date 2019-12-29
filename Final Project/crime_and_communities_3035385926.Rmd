@@ -1,0 +1,195 @@
+---
+title: "Crime and Communities"
+output: 
+    pdf_document:
+        keep_tex: yes
+---
+
+
+**Group Member 1 Name: **___Kaicheng Luo___   **Group Member 1 SID: **___3035443168__
+
+**Group Member 2 Name: **___Priscilla Hu___   **Group Member 2 SID: **___3035385926__
+
+The crime and communities dataset contains crime data from communities in the United States. The data combines socio-economic data from the 1990 US Census, law enforcement data from the 1990 US LEMAS survey, and crime data from the 1995 FBI UCR. More details can be found at https://archive.ics.uci.edu/ml/datasets/Communities+and+Crime+Unnormalized.
+
+The dataset contains 125 columns total; $p=124$ predictive and 1 target (ViolentCrimesPerPop). There are $n=1994$ observations. These can be arranged into an $n \times p = 1994 \times 127$ feature matrix $\mathbf{X}$, and an $n\times 1 = 1994 \times 1$ response vector $\mathbf{y}$ (containing the observations of ViolentCrimesPerPop).
+
+Once downloaded (from bCourses), the data can be loaded as follows.
+
+```{r}
+library(readr)
+library(FactoMineR)
+CC <- read_csv("crime_and_communities_data.csv")
+print(dim(CC))
+y <- CC$ViolentCrimesPerPop
+X <- subset(CC, select = -c(ViolentCrimesPerPop))
+```
+
+
+# Dataset exploration
+
+In this section, you should provide a thorough exploration of the features of the dataset. Things to keep in mind in this section include:
+
+- Which variables are categorical versus numerical?
+
+LemasGangUnitDeploy: gang unit deployed (numeric - integer - but really nominal - 0 means NO, 10 means YES, 5 means Part Time)
+
+- What are the general summary statistics of the data? How can these be visualized? 
+
+- Is the data normalized? Should it be normalized?
+
+- Are there missing values in the data? How should these missing values be handled? Yes. Drop those columns.
+
+- Can the data be well-represented in fewer dimensions? Yes.
+
+
+```{r}
+X<-X[which(colSums(is.na(X))==0)]
+X<-as.matrix(X)
+pca <- prcomp(X, scale. = F)
+pca_result <- PCA(X)
+pca_result$eig
+```
+
+
+```{r}
+summary(X[,1:10])
+par(mfrow=c(2,5))
+for (i in 1:10){
+  hist(X[,i],xlab=colnames(X)[i],main=paste("x",i))
+}
+
+dim(X)
+which(colSums(is.na(X))!=0)
+colSums(is.na(X))[which(colSums(is.na(X))!=0)]
+```
+
+# Regression task
+
+In this section, you should use the techniques learned in class to develop a model to predict ViolentCrimesPerPop using the 124 features (or some subset of them) stored in $\mathbf{X}$. Remember that you should try several different methods, and use model selection methods to determine which model is best. You should also be sure to keep a held-out test set to evaluate the performance of your model.
+
+```{r}
+#split data into training set and test set
+train<-1:1200
+val<-1201:1600
+test<-1601:1994
+```
+
+
+## OLS
+
+```{r}
+#OLS
+lm.fit=lm(y~X,subset=train)
+coef=lm.fit$coefficients
+coef[is.na(coef)]=0 #XOwnOccQrange's and XRentQrange's coefs are NA. Why?
+```
+
+## PCR
+
+```{r}
+#PCR
+library(pls)
+pcr.fit=pcr(y~X,scale=TRUE,validation="CV",subset=train)
+summary(pcr.fit)
+validationplot(pcr.fit,val.type="MSEP")
+
+pcr.fit=pcr(y~X,scale=TRUE,ncomp=22,subset=train)
+summary(pcr.fit)
+```
+
+## Partial Least Square Regression
+
+```{r}
+#PLSR
+pls.fit=plsr(y~X,subset=train,scale=TRUE,validation="CV")
+summary(pls.fit)
+validationplot(pls.fit,val.type="MSEP")
+
+pls.fit=plsr(y~X,subset=train,scale=TRUE,ncomp=4)
+summary(pls.fit)
+```
+
+## Ridge Regression
+
+```{r}
+#RR
+library(glmnet)
+grid=10^seq(10,-2,length=100)
+ridge.mod=glmnet(X[train,],y[train],alpha=0,lambda=grid,thresh=1e-12)
+```
+
+```{r}
+#use cross validation to determine the lambda for RR
+set.seed(1)
+cv.out=cv.glmnet(X[train,],y[train],alpha=0)
+plot(cv.out)
+bestlamRR=cv.out$lambda.min
+bestlamRR
+
+#the coefs of RR 
+out=glmnet(X[train,],y[train],alpha=0)
+predict(out,type="coefficients",s=bestlamRR)[1:102,]
+```
+
+
+##Lasso
+
+```{r}
+#Lasso
+lasso.mod=glmnet(X[train,],y[train],alpha=1,lambda=grid)
+plot(lasso.mod)
+```
+```{r}
+set.seed(1)
+cv.out=cv.glmnet(X[train,],y[train],alpha=1)
+plot(cv.out)
+bestlamLso=cv.out$lambda.min
+```
+
+```{r}
+bestlamLso
+out=glmnet(X,y,alpha=1,lambda=grid)
+lasso.coef=predict(out,type="coefficients",s=bestlamLso)[1:102,]
+lasso.coef
+lasso.coef[lasso.coef!=0]
+```
+
+
+## Model Selection
+
+```{r}
+MSE=rep(0,5)
+names(MSE)=c("OLS","PCR","PLSR","Ridge","Lasso")
+
+MSE[1]=mean((y[val]-cbind(1,X[val,])%*%(coef))^2)
+
+pcr.pred=predict(pcr.fit,X[val,],ncomp=20)
+MSE[2]=mean((pcr.pred-y[val])^2)
+
+pls.pred=predict(pls.fit,X[val,],ncomp=4)
+MSE[3]=mean((pls.pred-y[val])^2)
+
+ridge.pred=predict(ridge.mod,s=bestlamRR,newx=X[val,])
+MSE[4]=mean((ridge.pred-y[val])^2)
+
+lasso.pred=predict(lasso.mod,s=bestlamLso,newx=X[val,])
+MSE[5]=mean((lasso.pred-y[val])^2)
+
+MSE
+MSE[which.min(MSE)]
+```
+
+## Final Model: Ridge
+
+```{r}
+ridge.mod=glmnet(X[-test,],y[-test],alpha=0,lambda=bestlamRR)
+
+out=glmnet(X[-test,],y[-test],alpha=0)
+predict(out,type="coefficients",s=bestlamRR)[1:102,]
+
+ridge.pred=predict(ridge.mod,s=bestlamRR,newx=X[test,])
+MSE_ridge=mean((ridge.pred-y[test])^2)
+MSE_ridge
+```
+

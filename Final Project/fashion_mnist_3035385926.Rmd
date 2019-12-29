@@ -1,0 +1,411 @@
+---
+title: "fashion_mnist"
+date: "2019/12/6"
+output: 
+  pdf_document:
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+#library(car)
+library(glmnet)
+library(gmodels)
+library(FactoMineR)
+library(MASS)
+library(tensorflow)
+library(keras)
+library(tree)
+library(randomForest)
+```
+
+
+
+**Group Member 1 Name: **___Kaicheng Luo___   **Group Member 1 SID: **___3035443168__
+
+**Group Member 2 Name: **___Priscilla Hu___   **Group Member 2 SID: **___3035385926__
+
+The dataset contains $n=18,000$ different $28\times 28$ grayscale images of clothing, each with a label of either _shoes_, _shirt_, or _pants_ (6000 of each). If we stack the features into a single vector, we can transform each of these observations into a single $28*28 = 784$ dimensional vector. The data can thus be stored in a $n\times p = 18000\times 784$ data matrix $\mathbf{X}$, and the labels stored in a $n\times 1$ vector $\mathbf{y}$.
+
+Once downloaded, the data can be read as follows.
+
+```{r, echo = T, results = 'hide'}
+library(readr)
+FMNIST <- read_csv("FashionMNIST.csv")
+y <- FMNIST$label
+y0<-y
+X <- subset(FMNIST, select = -c(label))
+rm('FMNIST') #remove from memory -- it's a relatively large file
+print(dim(X))
+```
+
+
+# Data exploration and dimension reduction
+
+In this section, you will experiment with representing the images in fewer dimensions than $28*28 = 784$. You can use any of the various dimension reduction techniques introduced in class. How can you visualize these lower dimensional representations as images? How small of dimensionality can you use and still visually distinguish images from different classes?
+```{r}
+# idea 1: Intuitively, merge the neighbouring pixels together.
+temp = X
+for (i in colnames(X)){
+  temp[,i] <- ifelse(X[i]>0, 1, 0)
+}
+
+# Create a matrix
+zerovector <- rep(0,28)
+onevector <- rep(1,4)
+multiplier <- matrix(c(onevector, zerovector, onevector, zerovector, onevector, zerovector, onevector, zerovector, onevector, zerovector, onevector, zerovector, onevector), nrow = 7, byrow = T)
+
+dimred <- matrix(0, nrow = 18000, ncol = 49)
+for (i in 1:18000)
+{
+  x <- matrix(as.numeric(X[i,]), ncol=28, nrow=28, byrow = TRUE)
+  x <- apply(x, 2, rev)
+  x <- multiplier %*% x %*% t(multiplier) / 16
+  x <- as.vector(x)
+  dimred[i,] <- x
+}
+```
+
+We can look at a few of the images:
+```{r}
+X2 <- matrix(as.numeric(dimred[7,]), ncol=7, nrow=7)
+image(1:7, 1:7, t(X2), col=gray((0:255)/255), main='Class 2 (Shoes)')
+
+X2 <- matrix(as.numeric(dimred[2,]), ncol=7, nrow=7)
+image(1:7, 1:7, t(X2), col=gray((0:255)/255), main='Class 0 (T-shirt)')
+
+X2 <- matrix(as.numeric(dimred[8,]), ncol=7, nrow=7)
+image(1:7, 1:7, t(X2), col=gray((0:255)/255), main='Class 1 (Pants)')
+```
+
+```{r}
+# Idea 2: PCA
+library(knitr)
+pca <- prcomp(X, scale. = TRUE)
+V <- pca$rotation[,1:49]
+temp <- as.matrix(X) %*% V
+rerotation <- solve(pca$rotation)
+temp2 <- matrix(c(as.vector(temp), rep(0, 13230000)), nrow = 18000, ncol = 784, byrow = F) %*% rerotation
+dimred <- temp
+```
+
+```{r}
+# graph using different number of PCs: Shoes
+# for (i in c(3,4,5,10,20,30,40,60,80,100,150,200,250)){
+#   V <- pca$rotation[,1:i]
+#   temp <- as.matrix(X) %*% V
+#   temp2 <- matrix(c(as.vector(temp), rep(0, (784-i)*18000)), nrow = 18000, ncol = 784, byrow = F) %*% rerotation
+#   
+#   png(paste("Shoes",i, ".png", sep = ""))
+#   X2 <- matrix(as.numeric(temp2[7,]), ncol=28, nrow=28,byrow=T)
+#   X2 <- apply(X2, 2, rev)
+#   image(1:28, 1:28, t(X2), col=gray((0:255)/255), main=paste('Class 2 (Shoes)',"  # of PC: ",i))
+#   dev.off()
+# }
+```
+
+```{r}
+# graph using different number of PCs: T-shirts
+# for (i in c(3,4,5,10,20,30,40,60,80,100,150,200,250)){
+#   V <- pca$rotation[,1:i]
+#   temp <- as.matrix(X) %*% V
+#   temp2 <- matrix(c(as.vector(temp), rep(0, (784-i)*18000)), nrow = 18000, ncol = 784, byrow = F) %*% rerotation
+#   
+#   png(paste("T-shirt",i, ".png", sep = ""))
+#   X2 <- matrix(as.numeric(temp2[2,]), ncol=28, nrow=28,byrow=T)
+#   X2 <- apply(X2, 2, rev)
+#   image(1:28, 1:28, t(X2), col=gray((0:255)/255), main=paste('Class 2 (T-shirt)',"  # of PC: ",i))
+#   dev.off()
+# }
+```
+
+```{r}
+# graph using different number of PCs: Pants
+# for (i in c(3,4,5,10,20,30,40,60,80,100,150,200,250)){
+#     V <- pca$rotation[,1:i]
+#   temp <- as.matrix(X) %*% V
+#   temp2 <- matrix(c(as.vector(temp), rep(0, (784-i)*18000)), nrow = 18000, ncol = 784, byrow = F) %*% rerotation
+#   
+#   png(paste("Pants",i, ".png", sep = ""))
+#   X2 <- matrix(as.numeric(temp2[8,]), ncol=28, nrow=28,byrow=T)
+#   X2 <- apply(X2, 2, rev)
+#   image(1:28, 1:28, t(X2), col=gray((0:255)/255), main=paste('Class 1 (Pants)',"  # of PC: ",i))
+#   dev.off()
+# }
+```
+
+
+```{r}
+# Visualization
+X2 <- matrix(as.numeric(temp2[7,]), ncol=28, nrow=28, byrow = T)
+X2 <- apply(X2, 2, rev)
+image(1:28, 1:28, t(X2), col=gray((0:255)/255), main='Class 2 (Shoes)')
+
+X2 <- matrix(as.numeric(temp2[2,]), ncol=28, nrow=28, byrow = T)
+X2 <- apply(X2, 2, rev)
+image(1:28, 1:28, t(X2), col=gray((0:255)/255), main='Class 0 (T-shirt)')
+
+X2 <- matrix(as.numeric(temp2[8,]), ncol=28, nrow=28, byrow = T)
+X2 <- apply(X2, 2, rev)
+image(1:28, 1:28, t(X2), col=gray((0:255)/255), main='Class 1 (Pants)')
+```
+
+```{r}
+# We cannot use Linear Discriminant Analysis because we'll only get 2 discriminant functions from that, which is too small.
+```
+
+```{r}
+# Full data
+train_feature <- X[1:12000, ]
+train_label <- y[1:12000]
+test_feature <- X[12001:18000, ]
+test_label <- y[12001:18000]
+```
+
+
+```{r}
+# # Compare our results with NN and CNN (which is the origin of this dataset)
+# # The basic neural network, 2 layers, loss depicted by cross_entrpoy
+# model <- keras_model_sequential()
+# model %>%
+#   layer_flatten(input_shape = 784) %>%
+#   layer_dense(units = 128, activation = 'relu') %>%
+#   layer_dense(units = 10, activation = 'softmax')
+# 
+# # Compile the model
+# model %>% compile(
+#   optimizer = 'adam', 
+#   loss = 'sparse_categorical_crossentropy',
+#   metrics = c('accuracy')
+# )
+# model %>% fit(as.matrix(train_feature), as.numeric(as.matrix(train_label)), epochs = 5, verbose = 2)
+# 
+# score <- model %>% evaluate(as.matrix(test_feature), as.numeric(as.matrix(test_label)), verbose = 0)
+# cat('Test accuracy:', score$acc, "\n")
+```
+
+```{r}
+# temp <- X
+# X2 <- array_reshape(as.matrix(temp), dim = c(18000, 28, 28))
+# train_feature <- X2[1:12000,,]
+# train_label <- y[1:12000]
+# test_feature <- X2[12001:18000,,]
+# test_label <- y[12001:18000]
+```
+
+```{r}
+# model <- keras_model_sequential() %>% 
+#   layer_conv_1d(filters = 32, kernel_size = 2, activation = "relu", 
+#                 input_shape = c(28,28)) %>% 
+#   layer_max_pooling_1d(pool_size = 2) %>% 
+#   layer_conv_1d(filters = 64, kernel_size = 2, activation = "relu")
+# 
+# summary(model)
+# 
+# model %>% 
+#   layer_flatten() %>% 
+#   layer_dense(units = 64, activation = "relu") %>% 
+#   layer_dense(units = 10, activation = "softmax")
+# 
+# model %>% compile(
+#   optimizer = "adam",
+#   loss = "sparse_categorical_crossentropy",
+#   metrics = "accuracy"
+# )
+# 
+# history <- model %>% 
+#   fit(
+#     x = train_feature, y = as.numeric(train_label),
+#     epochs = 10,
+#     verbose = 2
+#   )
+# 
+# evaluate(model, test_feature, as.numeric(test_label), verbose = 0)
+```
+
+# Classification task
+
+## Binary classification
+
+In this section, you should use the techniques learned in class to develop a model for binary classification of the images. More specifically, you should split up the data into different pairs of classes, and fit several binary classification models. For example, you should develop a model to predict shoes vs shirts, shoes vs pants, and pants vs shirts.
+
+Remember that you should try several different methods, and use model selection methods to determine which model is best. You should also be sure to keep a held-out test set to evaluate the performance of your model. 
+
+
+```{r}
+#generate the low dimension dataset
+y <- y0
+y <- as.factor(y)
+data <- data.frame(y, dimred)
+set.seed(1)
+```
+
+```{r}
+# a function to generate validation MSE of different models for the given y1,y2
+binaryValMCE<-function(data,y1,y2){
+  MCE=data.frame(row.names=c("Logistic","LDA","Tree","Random Forest"))
+  
+  data=data[(data$y==y1)|(data$y==y2),]
+  data$y<-factor(data$y)
+
+  trainSet <- data[1:6000,]
+  valSet <- data[6001:10000,]
+  
+  #Logistic Regression
+  logreg_default <- glm(y~., family = binomial, data = trainSet)
+  pred_log <- ifelse(predict(logreg_default, valSet[,-1], type = "response")>0.5, y1, y2) 
+  MCE[1,1]=1-sum(diag(table(pred_log,valSet[,1])))/sum(table(pred_log,valSet[,1]))
+
+  #LDA
+  lda_default <- lda(y~.,data=trainSet)
+  pred_lda<-predict(lda_default,valSet[,-1],type="response")$class
+  MCE[2,1]=1-sum(diag(table(pred_lda,valSet[,1])))/sum(table(pred_lda,valSet[,1]))
+  
+  #tree
+  tree_default<-tree(y~.,trainSet)
+  pred_tree<-predict(tree_default,valSet[,-1],type="class")
+  MCE[3,1]=1-sum(diag(table(pred_tree,valSet[,1])))/sum(table(pred_tree,valSet[,1]))
+  
+  #Random Forest
+  rand_forest<-randomForest(y~.,trainSet)
+  pred_rndForest<-predict(rand_forest,valSet[,-1])
+  MCE[4,1]=1-sum(diag(table(pred_rndForest,valSet[,1])))/sum(table(pred_rndForest,valSet[,1]))
+
+  list(
+    crosstable=rbind(pred_log,pred_lda,pred_tree,pred_rndForest),
+    MCE=MCE,
+    valSet=valSet
+  )
+}
+```
+
+```{r}
+# a function to graph the cross tables
+graphCrossTable<-function(pred_list,valSet){
+  
+  method=c("Logistic","LDA","Tree","Random Forest")
+  for (i in 1:4){
+    print(method[i])
+    CrossTable(pred_list[i,], valSet[,1], chisq = FALSE)
+  }
+}
+```
+
+
+```{r}
+# generate the misclassification error table
+MisClasiError=data.frame("T-shirt vs Pants"=1:4,"T-shirt vs Shoes"=1:4,"Pants vs Shoes"=1:4,"Multiple Reg"=1:4)
+row.names(MisClasiError)=c("Logistic","LDA","Tree","Random Forest")
+MisClasiError[,1]=binaryValMCE(data,1,0)$MCE
+MisClasiError[,2]=binaryValMCE(data,2,0)$MCE
+MisClasiError[,3]=binaryValMCE(data,2,1)$MCE
+
+# CrossTable for T-shirt vs Pants
+graphCrossTable(binaryValMCE(data,1,0)$crosstable,binaryValMCE(data,1,0)$valSet)
+
+# CrossTable for T-shirt vs Pants
+graphCrossTable(binaryValMCE(data,2,0)$crosstable,binaryValMCE(data,2,0)$valSet)
+
+# CrossTable for T-shirt vs Pants
+graphCrossTable(binaryValMCE(data,2,1)$crosstable,binaryValMCE(data,2,1)$valSet)
+
+```
+
+
+## Multiclass classification
+
+In this section, you will develop a model to classify all three classes simultaneously. You should again try several different methods, and use model selection methods to determine which model is best. You should also be sure to keep a held-out test set to evaluate the performance of your model. (Side question: how could you use the binary models from the previous section to develop a multiclass classifier?)
+
+```{r}
+# split the dataset
+trainSet <- data[1:6000,]
+valSet <- data[6001:10000,]
+testSet <- data[10001:12000,]
+```
+
+
+```{r}
+#Multiple-class Logistic Regression
+library("nnet")
+multi_logit<-multinom(y~.,trainSet)
+pred <- predict(multi_logit,valSet[,-1], "class")
+MisClasiError[1,4]=1-sum(diag(table(pred, valSet[,1])))/sum(table(pred, valSet[,1]))
+CrossTable(pred, valSet[,1], chisq = FALSE)
+```
+
+```{r}
+#LDA
+lda_default <- lda(y~.,data=trainSet)
+pred_lda<-predict(lda_default,valSet[,-1],type="response")$class
+CrossTable(pred_lda,valSet[,1],chisq = FALSE)
+MisClasiError[2,4]=1-sum(diag(table(pred_lda,valSet[,1])))/sum(table(pred_lda,valSet[,1]))
+```
+
+```{r}
+#Tree
+tree_default<-tree(y~.,trainSet)
+summary(tree_default)
+
+#plot the tree
+plot(tree_default)
+text(tree_default,pretty=0)
+tree_default
+
+pred_tree<-predict(tree_default,valSet[,-1],type="class")
+MisClasiError[3,4]=1-sum(diag(table(pred_tree,valSet[,1])))/sum(table(pred_tree,valSet[,1]))
+CrossTable(pred_tree,valSet[,1],chisq = FALSE)
+```
+
+
+```{r}
+#pruned tree
+set.seed(3)
+cv.tree=cv.tree(tree_default,FUN=prune.misclass)
+cv.tree$size[which.min(cv.tree$dev)]
+```
+
+```{r}
+#Random forest: No need for test set
+library(randomForest)
+set.seed(1)
+rand_forest<-randomForest(y~.,trainSet)
+pred_rndForest<-predict(rand_forest,valSet[,-1])
+MisClasiError[4,4]=1-sum(diag(table(pred_rndForest,valSet[,1])))/sum(table(pred_rndForest,valSet[,1]))
+CrossTable(pred_rndForest,valSet[,1],chisq = FALSE)
+```
+
+```{r}
+#display the misclassification error table
+MisClasiError
+```
+
+```{r}
+# choose random forest as our final model
+#Random forest
+set.seed(1)
+
+#multiple-class
+rand_forest<-randomForest(y~.,data)
+rand_forest
+
+#T.shirt.vs.Pants
+data1=data[data$y!=2,]
+data1$y<-factor(data1$y)
+rand_forest1<-randomForest(y~.,data1)
+rand_forest1
+
+#T.shirt.vs.Shoes
+data2=data[data$y!=1,]
+data2$y<-factor(data2$y)
+rand_forest2<-randomForest(y~.,data2)
+rand_forest2
+
+#Pants.vs.Shoes
+data3=data[data$y!=0,]
+data3$y<-factor(data3$y)
+rand_forest3<-randomForest(y~.,data3)
+rand_forest3
+```
