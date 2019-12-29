@@ -1,0 +1,3 @@
+Overview:
+In this project, you will be asked to explore two different datasets. The first is "fashion mnist", which consists of greyscale images of various clothing items. The second is a crime dataset for various communities in the US. The details of each dataset are contained in the files
+crime_and_communities.Rmd and fashion_mnist.Rmd.
