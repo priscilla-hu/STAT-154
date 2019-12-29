@@ -1,0 +1,187 @@
+---
+title: "lab8"
+author: "Priscilla Hu"
+date: "11/4/2019"
+output: pdf_document
+---
+```{r}
+library(ISLR)
+library(ggplot2)
+names(Default)
+dim(Default)
+summary(Default)
+```
+
+
+```{r}
+#Exploratory Data Analysis
+
+#Subset the data into two subsets: one data set for default == 'Yes', and another data set for default == 'No'.
+data_yes=Default[Default$default=="Yes",]
+data_no=Default[Default$default=="No",]
+
+#Explore the data for each subset.
+head(data_yes)
+head(data_no)
+
+#Graph a scatterplot of balance and income, distinguishing observations based on default.
+ggplot(Default, aes(x=balance,y=income,color=default))+geom_point()
+
+#Make density plots of balance, differentiating by default
+ggplot(Default,aes(x=balance))+xlab("balance")+geom_density(fill="orange")
+
+#Make density plots of income, differentiating by default
+ggplot(Default,aes(x=income))+xlab("balance")+geom_density(fill="orange")
+```
+
+```{r}
+#Because default is a factor, you should create a numeric default vector.
+default_nu=rep(0,nrow(Default))
+default_nu[Default$default=="Yes"]=1
+Default$default_nu=default_nu
+fit=lm(default_nu~balance,data=Default)
+summary(fit)
+
+#Graph a scatterplot of the data, and display the fitted regression line.
+ggplot(Default,aes(x=balance,y=default_nu))+geom_point()+geom_abline(intercept = coef(fit)[1],slope=coef(fit)[2],color="red")
+```
+
+## Logistic Regression
+
+```{r}
+logreg_default <- glm(default ~ balance, family = binomial, data = Default) 
+summary(logreg_default)$coefficients
+```
+
+```{r}
+#Find out how to use predict() to obtain the probability of default for individuals with balance values of $100, $200, $300, . . ., $2,000
+probs=predict(logreg_default,newdata=data.frame(balance=seq(100,2000,by=100)),type="response")
+
+# Fit another logistic regerssion model by regressing default on student. How would you interpret the coefficient estimate?,
+logreg2=glm(default~student,family = binomial,data=Default)
+
+# Fit a third logistic regression by regressing default on balance, student, and income.
+logreg3=glm(default~balance+student+income,family = binomial,data=Default)
+
+# Are all coefficient estimates significant?
+summary(logreg2)$coef
+summary(logreg3)$coef
+
+```
+
+How would you explain the apparent contradiction between the opposite signs of the student coefficients (this regression versus the previous one)? Exlpanation:
+
+The variables student and balance are correlated. Students tend to hold higher levels of debt, which is in turn associated with higher probability of default. In other words, students are more likely to have large credit card balances, which tend to be associated with high default rates. 
+Thus, even though an individual student with a given credit card balance will tend to have a lower probability of default than a non-student with the same credit card balance (negative sign in multiple regression), the fact that students on the whole tend to have higher credit card balances means that overall, students tend to default at a higher rate than non-students (possitive sign in simple regression).
+
+
+## The Stock Market Smarket Data
+
+```{r}
+names(Smarket)
+dim(Smarket)
+summary(Smarket)
+```
+```{r}
+#Compute the matrix of correlations of the variables in Smarket, excluding the variable Direction
+cor(Smarket[,-9])
+#Perform a PCA on Smarket[ ,-9] to get a visual display of the variables.
+library("FactoMineR")
+PCA(Smarket[,-9])
+```
+
+```{r}
+# How correlated are the lag variables with today’s returns? Are previous day’s returns highly correlated with today’s returns?
+
+# Make a scatterplot of Year and Volume
+ggplot(Smarket,aes(x=Year,y=Volume))+geom_point()+geom_smooth(method='lm',se=F,color="blue")
+```
+
+```{r}
+#logistic regression
+
+# Inspect the summary() of the "glm" object containing the output of the logistic regression.
+glm.fits=glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume , data=Smarket ,family=binomial)
+summary(glm.fits)
+```
+
+
+Looking at the p-values of the regression coefficients, which coefficient seems to be significant?
+
+Answer: The smallest p value is associated with Lag1.
+```{r}
+summary(glm.fits)$coef
+```
+
+
+What is the coefficient value of Lag1? How would you interpret the sign of this coefficient?
+
+Answer: the coefficient value of Lag1 is -0.073073746, which means that one unit increase in Lag1 will lead to -0.073073746 unit decrease of possibility in Direction.
+
+
+```{r}
+# Use the predict() function to predict the probability that the market will go up, given values of the predictors.
+pred=predict(glm.fits,type="response")
+pred[1:20]
+```
+
+## Estimation of Parameters
+
+```{r}
+X=as.matrix(cbind(1,Smarket[,c(-1,-8,-9)]))
+y=rep(0,nrow(X))
+y[Smarket$Direction=="Up"]=1
+
+b_old=rep(0,ncol(X))
+b_new=rep(0.01,ncol(X))
+p=rep(0,nrow(X))
+W=diag(1,nrow=nrow(X))
+
+check_convergence <- function(x,y,error = 1e-4){
+  if (length(x)!=length(y)){
+    print("Error: Diff in length")
+    stop()
+  }
+  for (i in 1:length(x)){
+    if (abs(x[i] - y[i]) > error){return(F)}
+  }
+  return(T)
+}
+
+while (check_convergence(b_old, b_new) == F){
+  b_old=b_new
+  for (i in 1:nrow(X)){ #compute p
+    p[i]=exp(X[i,]%*%b_old)/(1+exp(X[i,]%*%b_old))
+    W[i,i]=p[i]*(1-p[i])
+  }
+  z=X%*%b_old+solve(W)%*%(y-p)
+  b_new=solve(t(X)%*%W%*%X)%*%t(X)%*%W%*%z
+}
+cbind(b_new,b_old)
+
+```
+
+
+```{r}
+# Simplified Algorithm
+X=as.matrix(cbind(1,Smarket[,c(-1,-8,-9)]))
+y=rep(0,nrow(X))
+y[Smarket$Direction=="Up"]=1
+X_hat=X
+
+b_old=rep(0,ncol(X))
+b_new=rep(0.01,ncol(X))
+p=rep(0,nrow(X))
+
+
+while (check_convergence(b_old, b_new) == F){
+  b_old=b_new
+  for (i in 1:nrow(X)){ #compute p
+    p[i]=exp(X[i,]%*%b_old)/(1+exp(X[i,]%*%b_old))
+    X_hat[i,]=X[i,]*(p[i]^(y[i])*(1-p[i])^(1-y[i]))
+  }
+  b_new=b_old+solve(t(X)%*%X_hat)%*%t(X)%*%(y-p)
+}
+cbind(b_new,b_old)
+```
+

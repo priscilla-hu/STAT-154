@@ -1,0 +1,136 @@
+---
+title: "lab 4"
+author: "Priscilla"
+date: "9/30/2019"
+output: pdf_document
+---
+## Lab 4: Bias-Variance Trade-Off
+
+```{r}
+x <- seq(-1, 1, by = 0.0001) 
+y <- sin(x * 3.14159265)
+plot(x, y, type = "l", lwd = 2, col = "#608EDB", las = 1, xlim = c(-1, 1), ylim = c(-1.5, 1.5))
+```
+
+## Fit the model and calculate training MSE
+```{r}
+y_const=c()
+y_linear=matrix(nrow=500,ncol=2)
+MSE_const_train=c()
+MSE_linear_train=c()
+
+for (i in 1:500){
+  x_pts <- runif(n = 2, min = -1, max = 1)
+  y_pts <- sin(pi*x_pts)
+  
+  y_const=c(y_const,mean(y_pts))
+  # calculate the training MSE
+  MSE_const_train=c(MSE_const_train,sum((y_pts-mean(y_pts))^2)/2) 
+  
+  y_linear[i,1]=(y_pts[1]-y_pts[2])/(x_pts[1]-x_pts[2])
+  y_linear[i,2]=(y_pts[2]*x_pts[1]-y_pts[1]*x_pts[2])/(x_pts[1]-x_pts[2])
+  
+  k=y_linear[i,1]
+  b=y_linear[i,2]
+  # calculate the training MSE
+  MSE_linear_train=c(MSE_linear_train,sum((k*x_pts+b-y_pts)^2)/2)
+}
+
+MSE_const_train_ave=mean(MSE_const_train)
+MSE_linear_train_ave=mean(MSE_linear_train)
+MSE_const_train_ave
+MSE_linear_train_ave
+```
+
+## Calculate testing MSE
+```{r}
+# calculate testing MSE
+MSE_const_test=c()
+MSE_linear_test=c()
+set.seed(12345)
+n_out <- 20000
+x_out <- runif(n_out, min = -1, max = 1)
+y_out <- sin(pi * x_out)
+
+for (i in 1:500){
+  # simulated out-of-sample data points
+  k=y_linear[i,1]
+  b=y_linear[i,2]
+  MSE_const_test=c(MSE_const_test,mean((y_const[i]-y_out)^2))
+  MSE_linear_test=c(MSE_linear_test,mean((k*x_out+b-y_out)^2))
+}
+MSE_const_test=mean(MSE_const_test)
+MSE_linear_test=mean(MSE_linear_test)
+
+v=c(MSE_const_test,MSE_linear_test)
+names(v)=c("MSE_const_test","MSE_linear_test")
+v
+
+```
+
+## The average hypotheses in each case
+```{r}
+# the average hypotheses in each case
+y_c_ave=mean(y_const)
+y_l_ave=apply(y_linear,2,mean)
+```
+
+## Calculate the bias^2 and variance
+```{r}
+# calculate the bias^2 and variance
+#bias
+bias2_c=mean((y_c_ave-y_out)^2)
+bias2_l=mean((y_l_ave[1]*x_out+y_l_ave[2]-y_out)^2)
+#variance
+var_c_set=c()
+var_l_set=c()
+for (i in 1:n_out){
+  x0=x_out[i]
+  y0=y_out[i]
+  #const model
+  var_c_set=c(var_c_set,sum((y_c_ave-y_const)^2)/500)
+  #linear model
+  k_ave=y_l_ave[1]
+  b_ave=y_l_ave[2]
+  k=y_linear[,1]
+  b=y_linear[,2]
+  var_l_set=c(var_l_set,sum((k_ave*x0+b_ave-k*x0-b)^2)/500)
+}
+var_c=sum(var_c_set)/n_out
+var_l=sum(var_l_set)/n_out
+vc=c(bias2_c,var_c)  # list and vector??
+vl=c(bias2_l,var_l)
+names(vc)=c("bias2","variance") # name(vc) and name.vc??
+names(vl)=c("bias2","variance")
+vc
+vl
+```
+
+```{r}
+bias2_c+var_c
+bias2_l+var_l
+```
+
+## Plots for both types of hypothese
+```{r}
+
+x0 <- seq(-1, 1, by = 0.0001) 
+y0 <- sin(x * 3.14159265)
+
+# plot for const hypothsis
+plot(x0, y0, type = "l", lwd = 2, col = "#608EDB", las = 1, xlim = c(-1, 1), ylim = c(-1.5, 1.5),xlab="x",ylab="y") #plot this one first
+abline(h=y_const,xlim = c(-1, 1), ylim = c(-1.5, 1.5),col="grey80",xlab="x",ylab="y")
+abline(h=0.02524979,xlim = c(-1, 1), ylim = c(-1.5, 1.5),col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type = "l", lwd = 2, col = "#608EDB", las = 1, xlim = c(-1, 1), ylim = c(-1.5, 1.5),xlab="x",ylab="y")
+
+
+# plot for linear hypothsis
+plot(x0, y0, type = "l", lwd = 2, col = "#608EDB", las = 1, xlim = c(-1, 1), ylim = c(-1.5, 1.5),xlab="x",ylab="y")
+for (i in 1:500){
+  abline(a=y_linear[i,2],b=y_linear[i,1],xlim = c(-1, 1), ylim = c(-1.5, 1.5),col="grey80",xlab="x",ylab="y")
+}
+abline(b_ave,k_ave,col="red",xlab="x",ylab="y")
+par(new=TRUE)
+plot(x0, y0, type = "l", lwd = 2, col = "#608EDB", las = 1, xlim = c(-1, 1), ylim = c(-1.5, 1.5),xlab="x",ylab="y")
+```

@@ -1,0 +1,103 @@
+---
+title: "lab 9"
+author: "Priscilla Hu"
+date: "11/18/2019"
+output: pdf_document
+---
+## Lab 09: Clustering
+
+## 1. K-Means Clustering
+
+```{r}
+Euc_dist <- function(x,y){
+ return(sqrt((x-y)^2)) 
+}
+
+L1_norm <- function(x,y){
+  return(sum(abs(x-y))) 
+}
+
+my_kmeans <- function(x, k, d){
+  n <- nrow(x)
+  init <- sample(1:n, k)
+  centroids <- x[init,]
+  assignment <- apply(x, 1, function(obs) {
+    distances <- apply(centroids, 1, function(centroid){
+      d(obs,centroid)
+    })
+  which.min(distances)
+  }) 
+ repeat {
+    prev <- assignment
+    mat_list <- split(x,assignment)
+    centroids <- t(sapply(mat_list,colMeans))
+    assignment <- apply(x, 1, function(obs) {
+      distances <- apply(centroids, 1,function(centroid) {
+        d(obs,centroid)
+    })
+  which.min(distances)
+  })
+  if (all(assignment == prev)){
+    break
+   }     
+ }
+
+  wss <- sapply(split(x,assignment), function(x_sub) {
+    sum(apply(x_sub, 2, function(col){ sum((col - mean(col))^2)} ))
+  })
+  
+  tss <- sum(apply(x, 2, function(col){ sum((col - mean(col))^2)} ))
+  bss_over_tss <- (tss - sum(wss)) / tss
+  return(list(cluster_sizes = as.vector(table(assignment)),cluster_means = centroids, clustering_vector = assignment, wss_cluster = wss, bss_over_tss = bss_over_tss))
+}
+```
+
+```{r}
+my_kmeans(iris[1:4],3,L1_norm)
+kmeans(iris[1:4],3)
+```
+
+
+Conceptual Questions 
+1. Suppose I perform PCA on my dataset to get U=XV, where U is the PC-transformed data matrix, X is the original data matrix, and V is the matrix of loadings. Using the Euclidean distance function, I then run k-means clustering on both U and X with everything equal (initial points, order of looping). Will the clustering solutions be the same? Why or why not? 
+
+Ans:Use all the components and it just roatate our data.
+
+
+2. Now I want to do dimension reduction and only keep the first L principal components before repeating Step 1. How will U change? Will the clustering solution stay the same? 
+
+Ans:No. 
+
+
+3. Now suppose I repeat Step 1 but with the L1 distance. Will the clustering solutions be the same? Why or why not? 
+
+Ans:No. l1 dist is changed.
+
+
+4. (Optional) Run some experiments to test your answers. Are the clustering solutions improved?
+
+
+
+
+## 2. (Agglomerative) Heirarchical Clustering
+
+```{r}
+hc.complete <-hclust(dist(iris[, 1:4]), method="complete") 
+plot(hc.complete, main="Complete Linkage ", xlab="", sub="",cex=.9)
+```
+
+```{r}
+hc.single<-hclust(dist(iris[, 1:4]), method="single")
+plot(hc.single, main="Single Linkage ", xlab="", sub="",cex=.9)
+```
+
+```{r}
+hc.average <- hclust(dist(iris[, 1:4]), method="average")
+plot(hc.average, main="Average Linkage ", xlab="", sub="",cex=.9)
+```
+
+```{r}
+cutree(hc.complete,3)
+```
+
+Most of them are the same. It may vary in number but basically it’s fine.

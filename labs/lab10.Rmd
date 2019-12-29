@@ -1,0 +1,98 @@
+---
+title: "lab10"
+author: "Priscilla Hu"
+date: "11/25/2019"
+output: pdf_document
+---
+
+## Classification
+
+```{r}
+library(tree)
+library(ISLR)
+attach(Carseats)
+High = ifelse(Sales<=8, "No", "Yes") 
+Carseats = data.frame(Carseats, High)
+```
+
+```{r}
+# fit a tree
+tree.carseats=tree(High~.-Sales,Carseats)
+summary(tree.carseats)
+```
+```{r}
+# visualization
+plot(tree.carseats)
+text(tree.carseats,pretty=0)
+```
+
+```{r}
+# Separate the Carseats dataset into a training and testing set.
+set.seed(2)
+train=sample(1:nrow(Carseats),200)
+Carseats.test=Carseats[-train,]
+High.test=High[-train]
+
+# Fit a tree using the training set, and use the predict function to evalute its test set accuracy.
+tree.carseats=tree(High~.-Sales,Carseats,subset=train) #return a tree structure
+tree.pred=predict(tree.carseats,Carseats.test,type="class")
+table(tree.pred,High.test)
+
+# Use the cv.tree function to perform cross validation to prune the trees. 
+cv.carseats=cv.tree(tree.carseats,FUN=prune.misclass)
+names(cv.carseats)
+cv.carseats
+```
+
+Q: Which value of k minimizes the CV error?
+
+```{r}
+# k
+k=cv.carseats$k[which.min(cv.carseats$dev)]
+k
+
+# size
+size=cv.carseats$size[which.min(cv.carseats$dev)]
+size
+```
+
+
+```{r}
+# using the model fit on the whole training set, and using the optimal level of k found above, use the prune.misclass function to prune this tree. 
+prune.carseats=prune.misclass(tree.carseats,best=size)
+
+# Use the predict function to evaluate the test set accuracy. How does the pruned test set accuracy compare with the unpruned test set accuracy?
+tree.pred=predict(prune.carseats,Carseats.test,type="class")
+table(tree.pred,High.test)
+```
+
+## Regression
+
+Repeat the above, but now building a regression tree for the Boston dataset (found in the MASS library). Note here medv is the target variable.
+
+```{r}
+library(MASS)
+set.seed (1)
+train = sample(1:nrow(Boston), nrow(Boston)/2)
+tree.boston=tree(medv~.,Boston ,subset=train)
+summary(tree.boston)
+```
+
+```{r}
+cv.boston=cv.tree(tree.boston)
+plot(cv.boston$size ,cv.boston$dev ,type='b')
+
+size=cv.boston$size[which.min(cv.boston$dev)]
+size
+
+prune.boston=prune.tree(tree.boston ,best=size)
+```
+
+```{r}
+yhat=predict(tree.boston ,newdata=Boston[-train ,])
+boston.test=Boston[-train ,"medv"]
+plot(yhat,boston.test)
+abline(0,1)
+mean((yhat-boston.test)^2)
+```
+

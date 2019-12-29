@@ -1,0 +1,87 @@
+---
+title: "lab 2 updated"
+author: "Priscilla"
+date: "9/29/2019"
+output: pdf_document
+---
+##Part 1
+```{r}
+getwd()
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/lab_csv")
+mtcars=read.csv("mtcars.csv",header=T)
+names(mtcars)
+response="mpg"
+predictors=c("hp","qsec","wt")
+variables=c(response,predictors)
+summary(mtcars[,variables])
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+for (i in variables){
+  hist(mtcars[,i],col="grey80",xlab="",main=paste(i),las=1)
+  }
+```
+```{r}
+par(mfrow=c(2,2))
+for (v in variables){
+  boxplot(mtcars[,v],col="grey80",xlab="",main=paste(v),las=1)
+} 
+```
+
+```{r}
+pairs(mtcars[,variables])
+```
+
+```{r}
+#compute the OLS outputs
+M=as.matrix(mtcars[,predictors]) ##as matrix才能使用矩阵运算
+X=cbind(1,M)
+y=mtcars[,response]
+
+qr_ols<-function(X,y)
+{
+  QR=qr(X)
+  Q=qr.Q(QR)
+  R=qr.R(QR)
+  b<-as.vector(backsolve(R,t(Q)%*%y)) ##先变成vector才可以给每一列加名字
+  names(b)=colnames(X)
+  return(b)
+}
+qr_ols(X,y)
+```
+## OLS outputs
+```{r}
+# function that computes the OLS solution using normal equations 
+# inputs: matrix of predictors, vector of response
+# output: list with coeffs, fitted values, and residuals
+ols<-function(X,y){
+  b=qr_ols(X,y)
+  y_hat=X%*%b
+  e=y-y_hat
+  # output !!!!
+  list(
+    coefficients=b,
+    fitted_values=y_hat,
+    residuals=e
+  )
+}
+
+ols1 <- ols(X, y)
+ols1
+
+reg <- lm(mpg ~ hp + qsec + wt, data = mtcars)
+names(reg)
+```
+
+```{r}
+# sum of squares decomposition
+Mc <- scale(mtcars[ ,predictors], scale = FALSE) 
+Xc <- cbind(intercept = 1, Mc)
+bc <- qr_ols(Xc, y) 
+bc
+bc[1] - sum(bc[-1] * colMeans(mtcars[, predictors])) ##bc[-1]是指除了bc[1]以外的所有
+
+```
+

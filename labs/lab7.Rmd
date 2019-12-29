@@ -1,0 +1,124 @@
+---
+title: "lab7"
+author: "Priscilla"
+date: "10/21/2019"
+output: pdf_document
+---
+
+## Lab 7: k-Nearest Neighbors Regression
+
+
+## Part 1: Implementing kNN Regression
+
+```{r}
+X <- runif(-2,2,n=100)
+f <- function(x){ return(sin(pi*x) +x^2)}
+y <- f(X) + rnorm(length(X), sd=.2)
+plot(X, y)
+```
+
+```{r}
+# kNNR function
+
+z=seq(-1,1,2)
+kNNR<-function(x,y,z,k){
+  f_hat=1:length(z) #store the f_hat of z
+  for (i in 1:length(z)){
+    dist=(x-z[i])^2
+    neighbors=sort(dist,index.return=T)$ix #return the index
+    kindex=neighbors[1:k]
+    f_hat[i]=mean(y[kindex])
+  }
+  return(f_hat)
+}
+
+z_hat=kNNR(X,y,z,5)
+```
+
+```{r}
+# Plot the function kNNR for k = 5.
+plot(X,y)
+points(z,z_hat,pch=16)
+```
+
+## 1.2 Compute the out of sample MSE for k ranging from 1 to 100. Which value of k makes the MSE smallest?
+
+```{r}
+Xtest  <- runif(-2,2,n=50)
+ytest <- f(Xtest) + rnorm(length(Xtest), sd=.2)
+MSE=rep(NA,100)
+for (i in 1:100){
+  z_hat=kNNR(X,y,Xtest,i)
+  MSE[i]=mean((z_hat-ytest)^2)
+}
+plot(MSE)
+which.min(MSE)
+```
+
+
+
+## Part 2: Comparison to Linear Regression
+
+## 2.1 (linearly generated data)
+```{r}
+X <- runif(-2,2,n=100)
+f <- function(x){ return(.5*x -1)}
+y <- f(X) + rnorm(length(X), sd=.2)
+
+Xtest <- runif(-2,2,n=100)
+ytest <- f(Xtest) + rnorm(length(Xtest), sd=.2)
+plot(X, y)
+
+lm_fit=lm(y~X)
+coef=lm_fit$coefficients
+coef
+X_ols=cbind(1,Xtest)
+mean((ytest-X_ols%*%coef)^2)
+```
+
+```{r}
+# test MSE for the k-Nearest Neighbors model
+MSE=rep(NA,100)
+for (i in 1:100){
+  z_hat=kNNR(X,y,Xtest,i)
+  MSE[i]=mean((ytest-z_hat)^2)
+}
+plot(MSE)
+which.min(MSE) #best k
+min(MSE) # KNN MSE
+```
+
+## 2.2 (non-linearly generated data)
+
+```{r}
+X <- runif(-2,2,n=100)
+f <- function(x){ return(.5*x^2 + x -2)} 
+y <- f(X) + rnorm(length(X), sd=.2)
+
+Xtest <- runif(-2,2,n=100)
+ytest <- f(Xtest) + rnorm(length(Xtest), sd=.2)
+plot(X, y)
+
+lm_fit=lm(y~X)
+coef=lm_fit$coefficients
+coef
+X_ols=cbind(1,Xtest)
+mean((ytest-X_ols%*%coef)^2)
+```
+
+
+```{r}
+# test MSE for the k-Nearest Neighbors model
+MSE=rep(NA,100)
+for (i in 1:100){
+  z_hat=kNNR(X,y,Xtest,i)
+  MSE[i]=mean((ytest-z_hat)^2)
+}
+plot(MSE)
+which.min(MSE)
+min(MSE)
+```
+
+KNN performs better now.
+
+

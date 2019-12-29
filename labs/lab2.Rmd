@@ -1,0 +1,237 @@
+---
+title: "lab2.R"
+author: "Priscilla Hu"
+date: "9/17/2019"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+library(FactoMineR)
+library(dplyr)
+library(MASS)
+getwd()
+setwd("/Users/priscilla/Desktop/UC Berkeley/Stat 154/lab_csv")
+mtcars=read.csv("mtcars.csv",header=T)
+names(mtcars)
+```
+
+## Part1: EDA
+```{r}
+# explore the variable
+
+# summary statistics
+summary(mtcars)
+```
+
+```{r}
+# graphs of distributions (e.g. histograms, boxplots)
+attach(mtcars)
+#mpg
+hist(mpg)
+boxplot(mpg)
+#hp
+hist(hp)
+boxplot(hp)
+#qsec
+hist(qsec)
+boxplot(qsec)
+#wt
+hist(wt)
+boxplot(wt)
+```
+
+
+```{r}
+#matrix of correlation of all variables (i.e. response and predictors)
+mtcars.var.names <- c("mpg", "hp", "qsec", "wt")
+my_data <- mtcars[,mtcars.var.names]
+cor(my_data)
+```
+
+
+
+```{r}
+#scatterplot matrix
+pairs(my_data)
+
+```
+
+
+
+```{r}
+#principal components analysis (of all variables)
+pca_result <- PCA(my_data)
+pca_result$eig
+```
+
+
+```{r}
+#compute the OLS outputs
+X=data.matrix(my_data[,2:4])
+X=cbind(1,X)
+y=data.matrix(my_data[,1])
+b_ols=solve(t(X)%*%X)%*%(t(X)%*%y)
+b_ols
+```
+
+
+
+## Part 2: QR Decomposition
+```{r}
+X=data.matrix(my_data[,2:4])
+X=cbind(1,X)
+y=data.matrix(my_data[,1])
+
+qr_ols<-function(X,y)
+{
+  QR=qr(X)
+  Q=qr.Q(QR)
+  R=qr.R(QR)
+  b<-backsolve(R,t(Q)%*%y)
+  return(b)
+}
+qr_ols(X,y)
+```
+
+
+
+## Part 3:OLS Outputs
+
+## functons
+
+```{r}
+X=data.matrix(my_data[,2:4])
+X=cbind(1,X)
+y=data.matrix(my_data[,1])
+
+# coefficients: vector of coefficients estimates
+coeff=qr_ols(X,y)
+# fitted_values: vector of fitted values
+fitted_values<-function(X,cof){
+  return(X%*%cof)
+}
+# residuals: vector of residuals
+residuals<-function(y,fitted_y){
+  return(y-fitted_y)
+}
+# RSS: residual sum of squares
+RSS<-function(resi)
+{
+  return(sum(resi^2))
+}
+# sigma2: unbiased estimator for the variance
+sigma2<-function(RSS,y)
+{
+  return(RSS/(length(y)-1))
+}
+# TSS: total sum of squares
+TSS<-function(y)
+{
+  return(sum((y-mean(y))^2))
+}
+# ESS: explained sum of squares
+ESS<-function(TSS,RSS)
+{
+  return(TSS-RSS)
+}
+
+# R2: coefficient of determination
+R2<-function(ESS,TSS){
+  return(ESS/TSS)
+}
+```
+
+## calculation
+
+```{r}
+#fitted_values
+fitted_values=fitted_values(X,coeff)
+fitted_values%>% head()
+```
+
+```{r}
+#residuals
+residuals=residuals(y,fitted_values)
+residuals%>% head()
+```
+
+```{r}
+#RSS
+RSS=RSS(residuals)
+RSS
+```
+
+```{r}
+#sigma2
+sigma2=sigma2(RSS,y)
+sigma2
+```
+
+```{r}
+#TSS
+TSS=TSS(y)
+TSS
+```
+
+```{r}
+#ESS
+ESS=ESS(TSS,RSS)
+ESS
+```
+
+```{r}
+#R2
+R2=R2(ESS,TSS)
+R2
+```
+
+```{r}
+#verify that R2 = cor2(y, ˆy)=0.8347678
+R2
+cor(y,fitted_values)^2
+```
+
+
+## Part4
+
+## mean-centered predictors
+
+```{r}
+mtcars.var.names <- c("mpg", "hp", "qsec", "carb")
+my_data <- mtcars[,mtcars.var.names]
+
+#coefficient
+my_data$hp <- my_data$hp - mean(my_data$hp)
+my_data$qsec <- my_data$qsec - mean(my_data$qsec)
+my_data$carb <- my_data$carb - mean(my_data$carb)
+b_mean=qr_ols(cbind(1,my_data[,-1]), my_data[,1])
+b_mean
+
+#obtain the untransformed predictors
+untrans_intercept=b_mean[1,1]-b_mean[2,1]*mean(hp)-b_mean[3,1]*mean(qsec)-b_mean[4,1]*mean(wt)
+untrans_intercept
+```
+
+
+## Standardized predictors
+
+```{r}
+
+mtcars.var.names <- c("mpg", "hp", "qsec", "carb")
+my_data <- mtcars[,mtcars.var.names]
+
+#coefficient
+se <- c(sd(my_data $hp), sd(my_data $qsec), sd(my_data $carb))
+my_data  <- my_data  %>%
+  mutate(hp = scale(hp), qsec = scale(qsec), carb = scale(carb))
+qr_ols(cbind(1,my_data[,-1]), my_data [,1])
+
+#obtain the untransformed predictors
+for (i in 2:4){
+  print(qr_ols(cbind(1,my_data[,-1]), my_data [,1])[i,1] / se[i-1])
+}
+```
+
+
